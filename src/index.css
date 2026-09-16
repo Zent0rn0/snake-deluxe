@@ -207,9 +207,34 @@ body {
   bottom: 0;
   background: radial-gradient(
     ellipse at center,
-    transparent 60%,
-    rgba(0, 0, 0, 0.3) 100%
+    transparent 50%,
+    rgba(0, 0, 0, 0.35) 100%
   );
   pointer-events: none;
   z-index: 5;
+}
+
+/* Chromatic aberration effect for extra retro feel */
+.crt-screen canvas {
+  filter: contrast(1.05) saturate(1.1);
+}
+
+/* Smooth transitions for overlays */
+.crt-screen > div {
+  transition: opacity 0.15s steps(3);
+}
+
+/* Glow effect for active elements */
+.retro-btn-green {
+  text-shadow: 0 0 8px rgba(134, 192, 108, 0.5);
+}
+
+/* Pulsing glow for score */
+@keyframes glow-pulse {
+  0%, 100% { text-shadow: 0 0 4px rgba(224, 248, 208, 0.3); }
+  50% { text-shadow: 0 0 12px rgba(224, 248, 208, 0.8); }
+}
+
+.animate-score-flash {
+  animation: scoreFlash 0.3s steps(3), glow-pulse 0.3s ease-out;
 }

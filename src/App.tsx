@@ -5,6 +5,7 @@ import {
   SNAKE_BODY, SNAKE_TAIL, FOOD_APPLE,
   drawSprite, drawCheckerboard, drawPixelBorder
 } from './sprites';
+import { ParticleSystem, ScreenShake, BloomEffect, lerp, smoothstep } from './effects';
 
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Position = { x: number; y: number };
@@ -106,6 +107,14 @@ function getRandomPosition(gridSize: number, snake: Position[]): Position {
   return pos;
 }
 
+// Interpolated position for smooth rendering
+interface InterpolatedSegment {
+  x: number;
+  y: number;
+  prevX: number;
+  prevY: number;
+}
+
 function App() {
   const [gameState, setGameState] = useState<GameState>('menu');
   const [currentLevel, setCurrentLevel] = useState<LevelKey>('classic');
@@ -114,31 +123,43 @@ function App() {
     const saved = localStorage.getItem('snake-highscore-retro');
     return saved ? parseInt(saved, 10) : 0;
   });
-  const [snake, setSnake] = useState<Position[]>([
-    { x: 10, y: 10 },
-    { x: 9, y: 10 },
-    { x: 8, y: 10 },
-  ]);
-  const [food, setFood] = useState<Position>({ x: 15, y: 15 });
-  const [direction, setDirection] = useState<Direction>('RIGHT');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [scoreFlash, setScoreFlash] = useState(false);
   const [isNewRecord, setIsNewRecord] = useState(false);
+  const [fps, setFps] = useState(0);
+  const [showFps, setShowFps] = useState(false);
 
   const level = LEVELS[currentLevel];
   const gridSize = level.gridSize;
 
+  // Game state in refs for performance (no re-renders)
+  const snakeRef = useRef<Position[]>([]);
+  const foodRef = useRef<Position>({ x: 15, y: 15 });
   const directionRef = useRef<Direction>('RIGHT');
+  const lastDirectionRef = useRef<Direction>('RIGHT');
+  const interpolatedSnakeRef = useRef<InterpolatedSegment[]>([]);
+  const lastTickTimeRef = useRef(0);
+  const gameStateRef = useRef<GameState>('menu');
+
+  // Effects
+  const particlesRef = useRef(new ParticleSystem());
+  const shakeRef = useRef(new ScreenShake());
+  const bloomRef = useRef(new BloomEffect());
+
+  // Canvas refs
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const borderCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Animation
+  const rafRef = useRef<number>(0);
   const gameLoopRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lastDirectionRef = useRef<Direction>('RIGHT');
-  const foodAnimFrame = useRef(0);
+  const foodAnimRef = useRef(0);
 
-  // Sync sound
-  useEffect(() => {
-    retroSounds.setEnabled(soundEnabled);
-  }, [soundEnabled]);
+  // Sync state refs
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { retroSounds.setEnabled(soundEnabled); }, [soundEnabled]);
 
   // Initialize game
   const initGame = useCallback(() => {
@@ -148,23 +169,24 @@ function App() {
       { x: mid - 1, y: mid },
       { x: mid - 2, y: mid },
     ];
-    setSnake(initialSnake);
-    setFood(getRandomPosition(gridSize, initialSnake));
+    snakeRef.current = initialSnake;
+    foodRef.current = getRandomPosition(gridSize, initialSnake);
+    interpolatedSnakeRef.current = initialSnake.map(s => ({
+      x: s.x, y: s.y, prevX: s.x, prevY: s.y,
+    }));
     setScore(0);
     setIsNewRecord(false);
-    setDirection('RIGHT');
     directionRef.current = 'RIGHT';
     lastDirectionRef.current = 'RIGHT';
+    particlesRef.current.clear();
   }, [gridSize]);
 
-  // Start game
   const startGame = useCallback(() => {
     initGame();
     setGameState('playing');
     retroSounds.playStart();
   }, [initGame]);
 
-  // Pause/Resume
   const togglePause = useCallback(() => {
     if (gameState === 'playing') {
       setGameState('paused');
@@ -174,80 +196,63 @@ function App() {
     }
   }, [gameState]);
 
-  // Game over
   const gameOver = useCallback(() => {
     setGameState('gameover');
     retroSounds.playGameOver();
+    shakeRef.current.trigger(8);
+
+    // Emit explosion particles at snake head
+    const head = snakeRef.current[0];
+    const canvas = canvasRef.current;
+    if (canvas && head) {
+      const borderW = 6;
+      const gameArea = canvas.width - borderW * 2;
+      const cellSize = gameArea / gridSize;
+      const px = borderW + head.x * cellSize + cellSize / 2;
+      const py = borderW + head.y * cellSize + cellSize / 2;
+      particlesRef.current.emit(px, py, 'explosion', 30);
+    }
+
     if (score > highScore) {
       setHighScore(score);
       setIsNewRecord(true);
       localStorage.setItem('snake-highscore-retro', score.toString());
       setTimeout(() => retroSounds.playHighScore(), 800);
     }
-  }, [score, highScore]);
+  }, [score, highScore, gridSize]);
 
-  // Draw game
-  const drawGame = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
+  // Create static background canvas
+  const createStaticBackground = useCallback((canvasWidth: number, canvasHeight: number) => {
     const borderW = 6;
-    const gameArea = canvas.width - borderW * 2;
+    const gameArea = canvasWidth - borderW * 2;
     const cellSize = gameArea / gridSize;
 
-    // Clear
-    ctx.fillStyle = '#0a0a1a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Background canvas
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = canvasWidth;
+    bgCanvas.height = canvasHeight;
+    const bgCtx = bgCanvas.getContext('2d')!;
 
-    // Draw checkerboard
-    ctx.save();
-    ctx.translate(borderW, borderW);
-    drawCheckerboard(ctx, gameArea, gameArea, cellSize);
+    bgCtx.fillStyle = '#0a0a1a';
+    bgCtx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Draw food
-    foodAnimFrame.current = (foodAnimFrame.current + 1) % 60;
-    const foodPixelSize = Math.max(1, Math.floor(cellSize / 10));
-    const foodOffset = Math.sin(foodAnimFrame.current * 0.1) * (cellSize > 20 ? 1 : 0);
-    drawSprite(
-      ctx,
-      FOOD_APPLE,
-      food.x * cellSize + (cellSize - foodPixelSize * 10) / 2,
-      food.y * cellSize + (cellSize - foodPixelSize * 10) / 2 + foodOffset,
-      foodPixelSize
-    );
+    bgCtx.save();
+    bgCtx.translate(borderW, borderW);
+    drawCheckerboard(bgCtx, gameArea, gameArea, cellSize);
+    bgCtx.restore();
 
-    // Draw snake
-    const spritePixelSize = Math.max(1, Math.floor(cellSize / 10));
+    bgCanvasRef.current = bgCanvas;
 
-    snake.forEach((segment, index) => {
-      const x = segment.x * cellSize;
-      const y = segment.y * cellSize;
-      const offsetX = (cellSize - spritePixelSize * 10) / 2;
-      const offsetY = (cellSize - spritePixelSize * 10) / 2;
+    // Border canvas
+    const borderCanvas = document.createElement('canvas');
+    borderCanvas.width = canvasWidth;
+    borderCanvas.height = canvasHeight;
+    const borderCtx = borderCanvas.getContext('2d')!;
+    drawPixelBorder(borderCtx, canvasWidth, canvasHeight, borderW);
+    borderCanvasRef.current = borderCanvas;
+  }, [gridSize]);
 
-      if (index === 0) {
-        let headSprite;
-        switch (directionRef.current) {
-          case 'LEFT': headSprite = SNAKE_HEAD_LEFT; break;
-          case 'UP': headSprite = SNAKE_HEAD_UP; break;
-          case 'DOWN': headSprite = SNAKE_HEAD_DOWN; break;
-          default: headSprite = SNAKE_HEAD_RIGHT;
-        }
-        drawSprite(ctx, headSprite, x + offsetX, y + offsetY, spritePixelSize);
-      } else if (index === snake.length - 1 && snake.length > 1) {
-        drawSprite(ctx, SNAKE_TAIL, x + offsetX, y + offsetY, spritePixelSize);
-      } else {
-        drawSprite(ctx, SNAKE_BODY, x + offsetX, y + offsetY, spritePixelSize);
-      }
-    });
-
-    ctx.restore();
-    drawPixelBorder(ctx, canvas.width, canvas.height, borderW);
-  }, [snake, food, gridSize]);
-
-  // Game loop
+  // Game logic tick
   useEffect(() => {
     if (gameState !== 'playing') {
       if (gameLoopRef.current) {
@@ -258,43 +263,72 @@ function App() {
     }
 
     const speed = level.speed;
+    lastTickTimeRef.current = performance.now();
 
     gameLoopRef.current = window.setInterval(() => {
-      setSnake(prevSnake => {
-        const head = { ...prevSnake[0] };
-        const currentDir = directionRef.current;
-        lastDirectionRef.current = currentDir;
+      const prevSnake = snakeRef.current.map(s => ({ ...s }));
 
-        switch (currentDir) {
-          case 'UP': head.y -= 1; break;
-          case 'DOWN': head.y += 1; break;
-          case 'LEFT': head.x -= 1; break;
-          case 'RIGHT': head.x += 1; break;
+      // Update interpolated positions to current
+      interpolatedSnakeRef.current = prevSnake.map(s => ({
+        x: s.x, y: s.y, prevX: s.x, prevY: s.y,
+      }));
+
+      const head = { ...prevSnake[0] };
+      const currentDir = directionRef.current;
+      lastDirectionRef.current = currentDir;
+
+      switch (currentDir) {
+        case 'UP': head.y -= 1; break;
+        case 'DOWN': head.y += 1; break;
+        case 'LEFT': head.x -= 1; break;
+        case 'RIGHT': head.x += 1; break;
+      }
+
+      if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
+        gameOver();
+        return;
+      }
+
+      if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
+        gameOver();
+        return;
+      }
+
+      const newSnake = [head, ...prevSnake];
+
+      if (head.x === foodRef.current.x && head.y === foodRef.current.y) {
+        setScore(prev => prev + 10);
+        foodRef.current = getRandomPosition(gridSize, newSnake);
+        retroSounds.playEat();
+        setScoreFlash(true);
+        setTimeout(() => setScoreFlash(false), 300);
+
+        // Emit food particles
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const borderW = 6;
+          const gameArea = canvas.width - borderW * 2;
+          const cellSize = gameArea / gridSize;
+          const px = borderW + head.x * cellSize + cellSize / 2;
+          const py = borderW + head.y * cellSize + cellSize / 2;
+          particlesRef.current.emit(px, py, 'food', 15);
         }
+      } else {
+        newSnake.pop();
+      }
 
-        if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
-          gameOver();
-          return prevSnake;
-        }
+      snakeRef.current = newSnake;
+      lastTickTimeRef.current = performance.now();
 
-        if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
-          gameOver();
-          return prevSnake;
-        }
-
-        const newSnake = [head, ...prevSnake];
-
-        if (head.x === food.x && head.y === food.y) {
-          setScore(prev => prev + 10);
-          setFood(getRandomPosition(gridSize, newSnake));
-          retroSounds.playEat();
-          setScoreFlash(true);
-          setTimeout(() => setScoreFlash(false), 300);
-        } else {
-          newSnake.pop();
-        }
-
-        return newSnake;
+      // Update interpolated snake - set prev to old position, current to new
+      interpolatedSnakeRef.current = newSnake.map((s, i) => {
+        const prev = prevSnake[i] || prevSnake[prevSnake.length - 1];
+        return {
+          x: s.x,
+          y: s.y,
+          prevX: prev.x,
+          prevY: prev.y,
+        };
       });
     }, speed);
 
@@ -304,102 +338,162 @@ function App() {
         gameLoopRef.current = null;
       }
     };
-  }, [gameState, level.speed, food, gridSize, gameOver]);
+  }, [gameState, level.speed, gridSize, gameOver]);
 
-  // Animation loop
+  // Render loop (separate from game logic for smooth 60fps)
   useEffect(() => {
-    let animFrame: number;
-    const animate = () => {
-      drawGame();
-      animFrame = requestAnimationFrame(animate);
-    };
-    animFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animFrame);
-  }, [drawGame]);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (gameState === 'playing' || gameState === 'paused') {
-        if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
-          e.preventDefault();
-          togglePause();
-          return;
+    let lastFrameTime = 0;
+    let frameCount = 0;
+    let fpsTime = 0;
+
+    const render = (timestamp: number) => {
+      // Delta time for effects
+      const dt = timestamp - lastFrameTime;
+      lastFrameTime = timestamp;
+
+      // FPS counter
+      frameCount++;
+      fpsTime += dt;
+      if (fpsTime >= 1000) {
+        setFps(frameCount);
+        frameCount = 0;
+        fpsTime = 0;
+      }
+
+      // Update effects
+      particlesRef.current.update();
+      shakeRef.current.update();
+      foodAnimRef.current += dt * 0.004;
+
+      const borderW = 6;
+      const gameArea = canvas.width - borderW * 2;
+      const cellSize = gameArea / gridSize;
+
+      // Clear
+      ctx.fillStyle = '#0a0a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Apply screen shake
+      ctx.save();
+      ctx.translate(shakeRef.current.offsetX, shakeRef.current.offsetY);
+
+      // Draw cached background
+      if (bgCanvasRef.current) {
+        ctx.drawImage(bgCanvasRef.current, 0, 0);
+      }
+
+      // Draw game elements
+      ctx.save();
+      ctx.translate(borderW, borderW);
+
+      // Food with glow and animation
+      const food = foodRef.current;
+      const foodPixelSize = Math.max(1, Math.floor(cellSize / 10));
+      const foodPulse = Math.sin(foodAnimRef.current * 3) * 0.15 + 1;
+      const foodX = food.x * cellSize + (cellSize - foodPixelSize * 10) / 2;
+      const foodY = food.y * cellSize + (cellSize - foodPixelSize * 10) / 2;
+
+      // Food glow
+      ctx.save();
+      ctx.shadowColor = '#ff4444';
+      ctx.shadowBlur = 12 + Math.sin(foodAnimRef.current * 3) * 4;
+      drawSprite(ctx, FOOD_APPLE, foodX, foodY, foodPixelSize * foodPulse);
+      ctx.restore();
+
+      // Snake with interpolation
+      const spritePixelSize = Math.max(1, Math.floor(cellSize / 10));
+      const interpSnake = interpolatedSnakeRef.current;
+      const timeSinceTick = timestamp - lastTickTimeRef.current;
+      const t = Math.min(1, timeSinceTick / level.speed);
+      const smoothT = smoothstep(t);
+
+      // Emit trail particles behind snake head (only while playing)
+      if (gameStateRef.current === 'playing' && interpSnake.length > 0 && Math.random() < 0.3) {
+        const headSeg = interpSnake[0];
+        const hx = (lerp(headSeg.prevX, headSeg.x, smoothT) + 0.5) * cellSize;
+        const hy = (lerp(headSeg.prevY, headSeg.y, smoothT) + 0.5) * cellSize;
+        particlesRef.current.emit(hx, hy, 'trail', 1);
+      }
+
+      // Draw snake body with glow
+      ctx.save();
+      ctx.shadowColor = '#4ade80';
+      ctx.shadowBlur = 6;
+
+      for (let i = interpSnake.length - 1; i >= 0; i--) {
+        const seg = interpSnake[i];
+        const drawX = lerp(seg.prevX, seg.x, smoothT) * cellSize;
+        const drawY = lerp(seg.prevY, seg.y, smoothT) * cellSize;
+        const offsetX = (cellSize - spritePixelSize * 10) / 2;
+        const offsetY = (cellSize - spritePixelSize * 10) / 2;
+
+        if (i === 0) {
+          // Head
+          let headSprite;
+          switch (directionRef.current) {
+            case 'LEFT': headSprite = SNAKE_HEAD_LEFT; break;
+            case 'UP': headSprite = SNAKE_HEAD_UP; break;
+            case 'DOWN': headSprite = SNAKE_HEAD_DOWN; break;
+            default: headSprite = SNAKE_HEAD_RIGHT;
+          }
+          drawSprite(ctx, headSprite, drawX + offsetX, drawY + offsetY, spritePixelSize);
+        } else if (i === interpSnake.length - 1 && interpSnake.length > 1) {
+          drawSprite(ctx, SNAKE_TAIL, drawX + offsetX, drawY + offsetY, spritePixelSize);
+        } else {
+          drawSprite(ctx, SNAKE_BODY, drawX + offsetX, drawY + offsetY, spritePixelSize);
         }
       }
+      ctx.restore();
 
-      if (gameState === 'gameover' || gameState === 'menu') {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          startGame();
-          return;
-        }
+      // Particles
+      particlesRef.current.draw(ctx);
+
+      ctx.restore(); // game area
+
+      // Draw cached border
+      if (borderCanvasRef.current) {
+        ctx.drawImage(borderCanvasRef.current, 0, 0);
       }
 
-      if (gameState !== 'playing') return;
+      ctx.restore(); // shake
 
-      const lastDir = lastDirectionRef.current;
+      // Bloom effect
+      bloomRef.current.apply(ctx, canvas, 0.3);
 
-      switch (e.key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-          e.preventDefault();
-          if (lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
-          break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-          e.preventDefault();
-          if (lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
-          break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          e.preventDefault();
-          if (lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          e.preventDefault();
-          if (lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
-          break;
+      // CRT vignette
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.3,
+        canvas.width / 2, canvas.height / 2, canvas.width * 0.7
+      );
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.4)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // FPS counter on canvas (top-left)
+      if (showFps) {
+        ctx.save();
+        ctx.font = '10px "Press Start 2P", monospace';
+        ctx.fillStyle = '#86c06c';
+        ctx.globalAlpha = 0.7;
+        ctx.fillText(`${fps} FPS`, 10, 16);
+        ctx.restore();
       }
+
+      rafRef.current = requestAnimationFrame(render);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, togglePause, startGame]);
+    rafRef.current = requestAnimationFrame(render);
 
-  // Touch controls
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  }, []);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!touchStartRef.current || gameState !== 'playing') return;
-
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStartRef.current.x;
-    const dy = touch.clientY - touchStartRef.current.y;
-    const minSwipe = 30;
-
-    if (Math.abs(dx) < minSwipe && Math.abs(dy) < minSwipe) return;
-
-    const lastDir = lastDirectionRef.current;
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0 && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
-      else if (dx < 0 && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
-    } else {
-      if (dy > 0 && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
-      else if (dy < 0 && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
-    }
-
-    touchStartRef.current = null;
-  }, [gameState]);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [gridSize, level.speed]);
 
   // Canvas resize
   useEffect(() => {
@@ -412,25 +506,109 @@ function App() {
       const maxSize = Math.min(container.clientWidth, 500);
       canvas.width = maxSize;
       canvas.height = maxSize;
-      drawGame();
+      bloomRef.current.resize(maxSize, maxSize);
+      createStaticBackground(maxSize, maxSize);
     };
 
     resize();
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
-  }, [drawGame]);
+  }, [createStaticBackground]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (gameStateRef.current === 'playing' || gameStateRef.current === 'paused') {
+        if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          togglePause();
+          return;
+        }
+      }
+
+      if (gameStateRef.current === 'gameover' || gameStateRef.current === 'menu') {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          startGame();
+          return;
+        }
+      }
+
+      if (gameStateRef.current !== 'playing') return;
+
+      const lastDir = lastDirectionRef.current;
+
+      switch (e.key) {
+        case 'ArrowUp':
+        case 'w':
+        case 'W':
+          e.preventDefault();
+          if (lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
+          break;
+        case 'ArrowDown':
+        case 's':
+        case 'S':
+          e.preventDefault();
+          if (lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
+          break;
+        case 'ArrowLeft':
+        case 'a':
+        case 'A':
+          e.preventDefault();
+          if (lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
+          break;
+        case 'ArrowRight':
+        case 'd':
+        case 'D':
+          e.preventDefault();
+          if (lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePause, startGame]);
+
+  // Touch controls
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current || gameStateRef.current !== 'playing') return;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+    const minSwipe = 30;
+
+    if (Math.abs(dx) < minSwipe && Math.abs(dy) < minSwipe) return;
+
+    const lastDir = lastDirectionRef.current;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
+      else if (dx < 0 && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
+    } else {
+      if (dy > 0 && lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
+      else if (dy < 0 && lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
+    }
+
+    touchStartRef.current = null;
+  }, []);
 
   // Direction buttons
   const handleDirectionButton = (dir: Direction) => {
-    if (gameState !== 'playing') return;
+    if (gameStateRef.current !== 'playing') return;
     const lastDir = lastDirectionRef.current;
-    if (dir === 'UP' && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
-    if (dir === 'DOWN' && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
-    if (dir === 'LEFT' && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
-    if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
+    if (dir === 'UP' && lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
+    if (dir === 'DOWN' && lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
+    if (dir === 'LEFT' && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
+    if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
   };
 
-  // Render stars
   const renderStars = (count: number) => {
     return '★'.repeat(count) + '☆'.repeat(5 - count);
   };
@@ -466,9 +644,14 @@ function App() {
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className="font-retro text-lg text-[#86c06c] hover:text-[#e0f8d0] transition-colors"
-            title={soundEnabled ? 'Выключить звук' : 'Включить звук'}
           >
             {soundEnabled ? '🔊' : '🔇'}
+          </button>
+          <button
+            onClick={() => setShowFps(!showFps)}
+            className="font-retro text-xs text-[#567c45] hover:text-[#86c06c] transition-colors"
+          >
+            {showFps ? `${fps} FPS` : 'FPS'}
           </button>
         </div>
       </div>
@@ -491,7 +674,6 @@ function App() {
               <div className="font-pixel text-[#86c06c] text-2xl mb-2 animate-bounce-retro">🐍</div>
               <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg mb-4">ВЫБОР УРОВНЯ</h2>
 
-              {/* Level selection */}
               <div className="flex flex-col gap-2 mb-5 max-h-[280px] overflow-y-auto px-2">
                 {LEVEL_LIST.map((lvl) => (
                   <button
@@ -612,7 +794,6 @@ function App() {
 
       {/* Controls */}
       <div className="w-full max-w-[500px] mt-3">
-        {/* Action buttons */}
         <div className="flex justify-center gap-2 mb-3">
           {gameState === 'playing' && (
             <button
@@ -663,7 +844,6 @@ function App() {
           </button>
         </div>
 
-        {/* Desktop hint */}
         <div className="hidden md:flex justify-center mt-1">
           <p className="font-retro text-[#306850] text-sm">
             ← ↑ ↓ → или W A S D • P/Esc — пауза
@@ -671,7 +851,6 @@ function App() {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="mt-3 text-center">
         <p className="font-retro text-[#1a3a1a] text-xs">
           РЕТРО АРКАДА © 2025
