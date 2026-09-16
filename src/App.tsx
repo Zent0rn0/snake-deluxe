@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { retroSounds } from './sounds';
+import {
+  SNAKE_HEAD_RIGHT, SNAKE_HEAD_LEFT, SNAKE_HEAD_UP, SNAKE_HEAD_DOWN,
+  SNAKE_BODY, SNAKE_TAIL, FOOD_APPLE,
+  drawSprite, drawCheckerboard, drawPixelBorder
+} from './sprites';
 
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Position = { x: number; y: number };
@@ -7,21 +13,15 @@ type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 
 const GRID_SIZE = 20;
 const DIFFICULTY_SPEEDS: Record<Difficulty, number> = {
-  easy: 150,
-  medium: 100,
-  hard: 60,
+  easy: 180,
+  medium: 120,
+  hard: 70,
 };
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: 'Легко',
   medium: 'Средне',
   hard: 'Сложно',
-};
-
-const DIFFICULTY_COLORS: Record<Difficulty, string> = {
-  easy: 'from-green-500 to-emerald-600',
-  medium: 'from-yellow-500 to-orange-600',
-  hard: 'from-red-500 to-rose-600',
 };
 
 function getRandomPosition(gridSize: number, snake: Position[]): Position {
@@ -40,19 +40,31 @@ function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
-    const saved = localStorage.getItem('snake-highscore');
+    const saved = localStorage.getItem('snake-highscore-retro');
     return saved ? parseInt(saved, 10) : 0;
   });
-  const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }]);
+  const [snake, setSnake] = useState<Position[]>([
+    { x: 10, y: 10 },
+    { x: 9, y: 10 },
+    { x: 8, y: 10 },
+  ]);
   const [food, setFood] = useState<Position>({ x: 15, y: 15 });
   const [direction, setDirection] = useState<Direction>('RIGHT');
-  const [showScorePopup, setShowScorePopup] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [scoreFlash, setScoreFlash] = useState(false);
+  const [isNewRecord, setIsNewRecord] = useState(false);
 
   const directionRef = useRef<Direction>('RIGHT');
   const gameLoopRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastDirectionRef = useRef<Direction>('RIGHT');
+  const foodAnimFrame = useRef(0);
+
+  // Sync sound setting
+  useEffect(() => {
+    retroSounds.setEnabled(soundEnabled);
+  }, [soundEnabled]);
 
   // Initialize game
   const initGame = useCallback(() => {
@@ -64,6 +76,7 @@ function App() {
     setSnake(initialSnake);
     setFood(getRandomPosition(GRID_SIZE, initialSnake));
     setScore(0);
+    setIsNewRecord(false);
     setDirection('RIGHT');
     directionRef.current = 'RIGHT';
     lastDirectionRef.current = 'RIGHT';
@@ -73,12 +86,14 @@ function App() {
   const startGame = useCallback(() => {
     initGame();
     setGameState('playing');
+    retroSounds.playStart();
   }, [initGame]);
 
   // Pause/Resume
   const togglePause = useCallback(() => {
     if (gameState === 'playing') {
       setGameState('paused');
+      retroSounds.playPause();
     } else if (gameState === 'paused') {
       setGameState('playing');
     }
@@ -87,115 +102,79 @@ function App() {
   // Game over
   const gameOver = useCallback(() => {
     setGameState('gameover');
+    retroSounds.playGameOver();
     if (score > highScore) {
       setHighScore(score);
-      localStorage.setItem('snake-highscore', score.toString());
+      setIsNewRecord(true);
+      localStorage.setItem('snake-highscore-retro', score.toString());
+      setTimeout(() => retroSounds.playHighScore(), 800);
     }
   }, [score, highScore]);
 
-  // Draw game on canvas
+  // Draw game
   const drawGame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const cellSize = canvas.width / GRID_SIZE;
+    const borderW = 6;
+    const gameArea = canvas.width - borderW * 2;
+    const cellSize = gameArea / GRID_SIZE;
 
-    // Clear canvas
-    ctx.fillStyle = '#0f172a';
+    // Clear
+    ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid lines
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= GRID_SIZE; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * cellSize, 0);
-      ctx.lineTo(i * cellSize, canvas.height);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, i * cellSize);
-      ctx.lineTo(canvas.width, i * cellSize);
-      ctx.stroke();
-    }
+    // Draw checkerboard background
+    ctx.save();
+    ctx.translate(borderW, borderW);
+    drawCheckerboard(ctx, gameArea, gameArea, cellSize);
 
-    // Draw food with glow effect
-    const foodX = food.x * cellSize + cellSize / 2;
-    const foodY = food.y * cellSize + cellSize / 2;
-    const foodRadius = cellSize * 0.4;
-
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(foodX, foodY, foodRadius, 0, Math.PI * 2);
-    ctx.fillStyle = '#ef4444';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Inner food highlight
-    ctx.beginPath();
-    ctx.arc(foodX - foodRadius * 0.2, foodY - foodRadius * 0.2, foodRadius * 0.3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fill();
+    // Draw food with animation
+    foodAnimFrame.current = (foodAnimFrame.current + 1) % 60;
+    const foodPixelSize = cellSize / 10;
+    const foodOffset = Math.sin(foodAnimFrame.current * 0.1) * 1;
+    drawSprite(
+      ctx,
+      FOOD_APPLE,
+      food.x * cellSize + (cellSize - foodPixelSize * 10) / 2,
+      food.y * cellSize + (cellSize - foodPixelSize * 10) / 2 + foodOffset,
+      foodPixelSize
+    );
 
     // Draw snake
+    const spritePixelSize = cellSize / 10;
+
     snake.forEach((segment, index) => {
       const x = segment.x * cellSize;
       const y = segment.y * cellSize;
-      const padding = 1;
+      const offsetX = (cellSize - spritePixelSize * 10) / 2;
+      const offsetY = (cellSize - spritePixelSize * 10) / 2;
 
       if (index === 0) {
         // Head
-        ctx.shadowColor = '#4ade80';
-        ctx.shadowBlur = 8;
-        const gradient = ctx.createLinearGradient(x, y, x + cellSize, y + cellSize);
-        gradient.addColorStop(0, '#4ade80');
-        gradient.addColorStop(1, '#22c55e');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.roundRect(x + padding, y + padding, cellSize - padding * 2, cellSize - padding * 2, 4);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Eyes
-        const eyeSize = cellSize * 0.12;
-        ctx.fillStyle = '#0f172a';
-        let eye1X: number, eye1Y: number, eye2X: number, eye2Y: number;
-
+        let headSprite;
         switch (directionRef.current) {
-          case 'RIGHT':
-            eye1X = x + cellSize * 0.7; eye1Y = y + cellSize * 0.3;
-            eye2X = x + cellSize * 0.7; eye2Y = y + cellSize * 0.7;
-            break;
-          case 'LEFT':
-            eye1X = x + cellSize * 0.3; eye1Y = y + cellSize * 0.3;
-            eye2X = x + cellSize * 0.3; eye2Y = y + cellSize * 0.7;
-            break;
-          case 'UP':
-            eye1X = x + cellSize * 0.3; eye1Y = y + cellSize * 0.3;
-            eye2X = x + cellSize * 0.7; eye2Y = y + cellSize * 0.3;
-            break;
-          case 'DOWN':
-            eye1X = x + cellSize * 0.3; eye1Y = y + cellSize * 0.7;
-            eye2X = x + cellSize * 0.7; eye2Y = y + cellSize * 0.7;
-            break;
+          case 'LEFT': headSprite = SNAKE_HEAD_LEFT; break;
+          case 'UP': headSprite = SNAKE_HEAD_UP; break;
+          case 'DOWN': headSprite = SNAKE_HEAD_DOWN; break;
+          default: headSprite = SNAKE_HEAD_RIGHT;
         }
-        ctx.beginPath();
-        ctx.arc(eye1X, eye1Y, eyeSize, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(eye2X, eye2Y, eyeSize, 0, Math.PI * 2);
-        ctx.fill();
+        drawSprite(ctx, headSprite, x + offsetX, y + offsetY, spritePixelSize);
+      } else if (index === snake.length - 1 && snake.length > 1) {
+        // Tail
+        drawSprite(ctx, SNAKE_TAIL, x + offsetX, y + offsetY, spritePixelSize);
       } else {
-        // Body segments with gradient
-        const alpha = 1 - (index / snake.length) * 0.4;
-        ctx.fillStyle = `rgba(74, 222, 128, ${alpha})`;
-        ctx.beginPath();
-        ctx.roundRect(x + padding, y + padding, cellSize - padding * 2, cellSize - padding * 2, 3);
-        ctx.fill();
+        // Body
+        drawSprite(ctx, SNAKE_BODY, x + offsetX, y + offsetY, spritePixelSize);
       }
     });
+
+    ctx.restore();
+
+    // Draw border
+    drawPixelBorder(ctx, canvas.width, canvas.height, borderW);
   }, [snake, food]);
 
   // Game loop
@@ -223,13 +202,13 @@ function App() {
           case 'RIGHT': head.x += 1; break;
         }
 
-        // Check wall collision
+        // Wall collision
         if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
           gameOver();
           return prevSnake;
         }
 
-        // Check self collision
+        // Self collision
         if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
           gameOver();
           return prevSnake;
@@ -237,12 +216,13 @@ function App() {
 
         const newSnake = [head, ...prevSnake];
 
-        // Check food collision
+        // Food collision
         if (head.x === food.x && head.y === food.y) {
           setScore(prev => prev + 10);
           setFood(getRandomPosition(GRID_SIZE, newSnake));
-          setShowScorePopup(true);
-          setTimeout(() => setShowScorePopup(false), 500);
+          retroSounds.playEat();
+          setScoreFlash(true);
+          setTimeout(() => setScoreFlash(false), 300);
         } else {
           newSnake.pop();
         }
@@ -259,9 +239,15 @@ function App() {
     };
   }, [gameState, difficulty, food, gameOver]);
 
-  // Draw on every state change
+  // Animation loop for food
   useEffect(() => {
-    drawGame();
+    let animFrame: number;
+    const animate = () => {
+      drawGame();
+      animFrame = requestAnimationFrame(animate);
+    };
+    animFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animFrame);
   }, [drawGame]);
 
   // Keyboard controls
@@ -292,25 +278,25 @@ function App() {
         case 'w':
         case 'W':
           e.preventDefault();
-          if (lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); }
+          if (lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
           break;
         case 'ArrowDown':
         case 's':
         case 'S':
           e.preventDefault();
-          if (lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); }
+          if (lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
           break;
         case 'ArrowLeft':
         case 'a':
         case 'A':
           e.preventDefault();
-          if (lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); }
+          if (lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
           break;
         case 'ArrowRight':
         case 'd':
         case 'D':
           e.preventDefault();
-          if (lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); }
+          if (lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
           break;
       }
     };
@@ -338,11 +324,11 @@ function App() {
     const lastDir = lastDirectionRef.current;
 
     if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0 && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); }
-      else if (dx < 0 && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); }
+      if (dx > 0 && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
+      else if (dx < 0 && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
     } else {
-      if (dy > 0 && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); }
-      else if (dy < 0 && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); }
+      if (dy > 0 && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
+      else if (dy < 0 && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
     }
 
     touchStartRef.current = null;
@@ -356,9 +342,9 @@ function App() {
     if (!container) return;
 
     const resize = () => {
-      const size = Math.min(container.clientWidth, container.clientHeight, 500);
-      canvas.width = size;
-      canvas.height = size;
+      const maxSize = Math.min(container.clientWidth, 500);
+      canvas.width = maxSize;
+      canvas.height = maxSize;
       drawGame();
     };
 
@@ -367,164 +353,184 @@ function App() {
     return () => window.removeEventListener('resize', resize);
   }, [drawGame]);
 
-  // Direction buttons for mobile
+  // Direction buttons
   const handleDirectionButton = (dir: Direction) => {
     if (gameState !== 'playing') return;
     const lastDir = lastDirectionRef.current;
-    if (dir === 'UP' && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); }
-    if (dir === 'DOWN' && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); }
-    if (dir === 'LEFT' && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); }
-    if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); }
+    if (dir === 'UP' && lastDir !== 'DOWN') { directionRef.current = 'UP'; setDirection('UP'); retroSounds.playTurn(); }
+    if (dir === 'DOWN' && lastDir !== 'UP') { directionRef.current = 'DOWN'; setDirection('DOWN'); retroSounds.playTurn(); }
+    if (dir === 'LEFT' && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; setDirection('LEFT'); retroSounds.playTurn(); }
+    if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden">
-      {/* Header */}
-      <div className="w-full max-w-lg mb-4">
-        <h1 className="text-3xl md:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 mb-2">
-          🐍 Змейка
+    <div className="min-h-screen bg-[#0a0a1a] flex flex-col items-center justify-center p-3 overflow-hidden">
+      {/* Title */}
+      <div className="w-full max-w-[500px] mb-3">
+        <h1 className="font-pixel text-center text-green-400 text-lg md:text-xl mb-3 tracking-wider">
+          🐍 ЗМЕЙКА
         </h1>
 
-        {/* Score bar */}
-        <div className="flex justify-between items-center bg-slate-800/80 backdrop-blur-sm rounded-xl px-4 py-2 border border-slate-700/50">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">Счёт:</span>
-            <span className={`text-xl font-bold text-green-400 transition-transform ${showScorePopup ? 'scale-125' : 'scale-100'}`}>
-              {score}
+        {/* Score panel */}
+        <div className="flex justify-between items-center bg-[#1a1a2e] border-2 border-[#306850] rounded px-3 py-2">
+          <div className="flex flex-col items-center">
+            <span className="font-retro text-[#86c06c] text-xs">СЧЁТ</span>
+            <span className={`font-pixel text-[#e0f8d0] text-sm ${scoreFlash ? 'animate-score-flash' : ''}`}>
+              {score.toString().padStart(4, '0')}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">Рекорд:</span>
-            <span className="text-xl font-bold text-yellow-400">
-              {highScore}
+          <div className="flex flex-col items-center">
+            <span className="font-retro text-[#86c06c] text-xs">РЕКОРД</span>
+            <span className="font-pixel text-[#d4a017] text-sm">
+              {highScore.toString().padStart(4, '0')}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm">Сложность:</span>
-            <span className={`text-sm font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r ${DIFFICULTY_COLORS[difficulty]} text-white`}>
+          <div className="flex flex-col items-center">
+            <span className="font-retro text-[#86c06c] text-xs">УРОВЕНЬ</span>
+            <span className="font-pixel text-[#e0f8d0] text-[10px]">
               {DIFFICULTY_LABELS[difficulty]}
             </span>
           </div>
+          {/* Sound toggle */}
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="font-retro text-lg text-[#86c06c] hover:text-[#e0f8d0] transition-colors"
+            title={soundEnabled ? 'Выключить звук' : 'Включить звук'}
+          >
+            {soundEnabled ? '🔊' : '🔇'}
+          </button>
         </div>
       </div>
 
-      {/* Game area */}
-      <div className="relative w-full max-w-lg aspect-square game-area">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full rounded-xl border-2 border-slate-700/50 shadow-2xl shadow-green-500/10"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        />
+      {/* Game canvas */}
+      <div className="relative w-full max-w-[500px] game-area">
+        <div className="crt-screen scanlines">
+          <canvas
+            ref={canvasRef}
+            className="w-full bg-[#0a200a]"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          />
+        </div>
 
         {/* Menu overlay */}
         {gameState === 'menu' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm rounded-xl animate-fadeIn">
-            <div className="text-6xl mb-4">🐍</div>
-            <h2 className="text-2xl font-bold text-white mb-6">Змейка</h2>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade">
+            <div className="text-center">
+              <div className="font-pixel text-[#86c06c] text-2xl mb-2 animate-bounce-retro">🐍</div>
+              <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg mb-6">ЗМЕЙКА</h2>
 
-            {/* Difficulty selection */}
-            <div className="mb-6">
-              <p className="text-slate-400 text-sm text-center mb-3">Выберите сложность:</p>
-              <div className="flex gap-3">
-                {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => (
-                  <button
-                    key={diff}
-                    onClick={() => setDifficulty(diff)}
-                    className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                      difficulty === diff
-                        ? `bg-gradient-to-r ${DIFFICULTY_COLORS[diff]} text-white scale-105 shadow-lg`
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                    }`}
-                  >
-                    {DIFFICULTY_LABELS[diff]}
-                  </button>
-                ))}
+              {/* Difficulty */}
+              <div className="mb-6">
+                <p className="font-retro text-[#86c06c] text-lg mb-3">ВЫБЕРИТЕ УРОВЕНЬ:</p>
+                <div className="flex gap-2 justify-center">
+                  {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => (
+                    <button
+                      key={diff}
+                      onClick={() => setDifficulty(diff)}
+                      className={`retro-btn text-[10px] ${
+                        difficulty === diff ? 'retro-btn-green' : 'retro-btn-gray'
+                      }`}
+                    >
+                      {DIFFICULTY_LABELS[diff]}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <button
+                onClick={startGame}
+                className="retro-btn retro-btn-green text-xs"
+              >
+                ▶ СТАРТ
+              </button>
+
+              <p className="font-retro text-[#567c45] text-sm mt-4">
+                Стрелки / WASD / Свайпы
+              </p>
+              <p className="font-retro text-[#306850] text-xs mt-1 animate-blink">
+                Нажмите ENTER чтобы начать
+              </p>
             </div>
-
-            <button
-              onClick={startGame}
-              className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl text-lg hover:scale-105 transition-transform shadow-lg shadow-green-500/30 active:scale-95"
-            >
-              Начать игру
-            </button>
-
-            <p className="text-slate-500 text-xs mt-4 text-center px-4">
-              Управление: стрелки / WASD / свайпы
-            </p>
           </div>
         )}
 
         {/* Paused overlay */}
         {gameState === 'paused' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm rounded-xl animate-fadeIn">
-            <div className="text-5xl mb-4">⏸️</div>
-            <h2 className="text-2xl font-bold text-white mb-4">Пауза</h2>
-            <div className="flex gap-3">
-              <button
-                onClick={togglePause}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:scale-105 transition-transform shadow-lg"
-              >
-                Продолжить
-              </button>
-              <button
-                onClick={() => { setGameState('menu'); }}
-                className="px-6 py-2 bg-slate-700 text-slate-300 font-bold rounded-xl hover:bg-slate-600 transition-colors"
-              >
-                Меню
-              </button>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/90 animate-pixel-fade">
+            <div className="text-center">
+              <div className="font-pixel text-[#d4a017] text-lg mb-4">⏸ ПАУЗА</div>
+              <div className="flex flex-col gap-3 items-center">
+                <button
+                  onClick={togglePause}
+                  className="retro-btn retro-btn-green text-[10px]"
+                >
+                  ▶ ПРОДОЛЖИТЬ
+                </button>
+                <button
+                  onClick={() => setGameState('menu')}
+                  className="retro-btn retro-btn-gray text-[10px]"
+                >
+                  ↩ МЕНЮ
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Game over overlay */}
         {gameState === 'gameover' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-sm rounded-xl animate-fadeIn">
-            <div className="text-5xl mb-3">💀</div>
-            <h2 className="text-2xl font-bold text-red-400 mb-2">Игра окончена!</h2>
-            <p className="text-slate-300 mb-1">Ваш счёт: <span className="text-green-400 font-bold text-xl">{score}</span></p>
-            {score >= highScore && score > 0 && (
-              <p className="text-yellow-400 text-sm font-semibold animate-slideUp mb-3">
-                🏆 Новый рекорд!
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade">
+            <div className="text-center">
+              <div className="font-pixel text-[#c03030] text-base mb-3">GAME OVER</div>
+              <div className="font-retro text-[#e0f8d0] text-xl mb-1">
+                СЧЁТ: <span className="text-[#86c06c]">{score}</span>
+              </div>
+              {isNewRecord && (
+                <div className="font-pixel text-[#d4a017] text-[10px] mt-2 animate-bounce-retro">
+                  ★ НОВЫЙ РЕКОРД! ★
+                </div>
+              )}
+              <div className="flex flex-col gap-3 items-center mt-5">
+                <button
+                  onClick={startGame}
+                  className="retro-btn retro-btn-green text-[10px]"
+                >
+                  ↻ ЕЩЁ РАЗ
+                </button>
+                <button
+                  onClick={() => setGameState('menu')}
+                  className="retro-btn retro-btn-gray text-[10px]"
+                >
+                  ↩ МЕНЮ
+                </button>
+              </div>
+              <p className="font-retro text-[#306850] text-xs mt-4 animate-blink">
+                Нажмите ENTER
               </p>
-            )}
-            <div className="flex gap-3 mt-3">
-              <button
-                onClick={startGame}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:scale-105 transition-transform shadow-lg"
-              >
-                Заново
-              </button>
-              <button
-                onClick={() => setGameState('menu')}
-                className="px-6 py-2 bg-slate-700 text-slate-300 font-bold rounded-xl hover:bg-slate-600 transition-colors"
-              >
-                Меню
-              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* Controls */}
-      <div className="w-full max-w-lg mt-4">
+      <div className="w-full max-w-[500px] mt-3">
         {/* Action buttons */}
-        <div className="flex justify-center gap-3 mb-4">
+        <div className="flex justify-center gap-2 mb-3">
           {gameState === 'playing' && (
             <button
               onClick={togglePause}
-              className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg font-medium hover:bg-slate-600 transition-colors flex items-center gap-2"
+              className="retro-btn retro-btn-gray text-[10px]"
             >
-              <span>⏸</span> Пауза
+              ⏸ ПАУЗА
             </button>
           )}
           {(gameState === 'playing' || gameState === 'paused') && (
             <button
-              onClick={() => setGameState('menu')}
-              className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg font-medium hover:bg-slate-600 transition-colors flex items-center gap-2"
+              onClick={() => { initGame(); setGameState('menu'); }}
+              className="retro-btn retro-btn-red text-[10px]"
             >
-              <span>🔄</span> Рестарт
+              ↻ РЕСТАРТ
             </button>
           )}
         </div>
@@ -533,39 +539,46 @@ function App() {
         <div className="flex flex-col items-center md:hidden">
           <button
             onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('UP'); }}
-            className="w-14 h-14 bg-slate-700/80 rounded-xl flex items-center justify-center text-2xl text-white active:bg-green-600 transition-colors mb-1 shadow-lg border border-slate-600/50"
+            className="dpad-btn rounded-t-lg"
           >
             ▲
           </button>
-          <div className="flex gap-1">
+          <div className="flex">
             <button
               onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('LEFT'); }}
-              className="w-14 h-14 bg-slate-700/80 rounded-xl flex items-center justify-center text-2xl text-white active:bg-green-600 transition-colors shadow-lg border border-slate-600/50"
+              className="dpad-btn rounded-bl-lg"
             >
               ◀
             </button>
-            <div className="w-14 h-14" />
+            <div className="w-[56px] h-[56px] bg-[#1a1a2e] border-t-3 border-b-3 border-[#4a4a6e]" />
             <button
               onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('RIGHT'); }}
-              className="w-14 h-14 bg-slate-700/80 rounded-xl flex items-center justify-center text-2xl text-white active:bg-green-600 transition-colors shadow-lg border border-slate-600/50"
+              className="dpad-btn rounded-br-lg"
             >
               ▶
             </button>
           </div>
           <button
             onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('DOWN'); }}
-            className="w-14 h-14 bg-slate-700/80 rounded-xl flex items-center justify-center text-2xl text-white active:bg-green-600 transition-colors mt-1 shadow-lg border border-slate-600/50"
+            className="dpad-btn rounded-b-lg"
           >
             ▼
           </button>
         </div>
 
         {/* Desktop hint */}
-        <div className="hidden md:flex justify-center mt-2">
-          <p className="text-slate-500 text-xs">
-            ← ↑ ↓ → или W A S D для управления • P или Esc — пауза
+        <div className="hidden md:flex justify-center mt-1">
+          <p className="font-retro text-[#306850] text-sm">
+            ← ↑ ↓ → или W A S D • P/Esc — пауза
           </p>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-3 text-center">
+        <p className="font-retro text-[#1a3a1a] text-xs">
+          РЕТРО АРКАДА © 2025
+        </p>
       </div>
     </div>
   );

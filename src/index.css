@@ -1,42 +1,189 @@
 @import "tailwindcss";
 
-@keyframes pulse-food {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.85; }
+:root {
+  --retro-green: #306850;
+  --retro-light-green: #86c06c;
+  --retro-dark: #0f380f;
+  --retro-bg: #9bbc0f;
+  --retro-accent: #e0f8d0;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
+* {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+body {
+  font-family: 'VT323', monospace;
+  background-color: #1a1a2e;
+  overflow: hidden;
+}
+
+.font-pixel {
+  font-family: 'Press Start 2P', cursive;
+}
+
+.font-retro {
+  font-family: 'VT323', monospace;
+}
+
+/* Retro scanline effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Retro pixel border */
+.pixel-border {
+  box-shadow:
+    inset -4px -4px 0px 0px #1a1a2e,
+    inset 4px 4px 0px 0px #4a4a6e,
+    inset -8px -8px 0px 0px #2a2a4e,
+    inset 8px 8px 0px 0px #5a5a8e;
+}
+
+.pixel-border-green {
+  box-shadow:
+    inset -4px -4px 0px 0px #0a2a0a,
+    inset 4px 4px 0px 0px #40a040,
+    inset -8px -8px 0px 0px #1a4a1a,
+    inset 8px 8px 0px 0px #50c050;
+}
+
+/* Retro button style */
+.retro-btn {
+  font-family: 'Press Start 2P', cursive;
+  position: relative;
+  border: none;
+  padding: 12px 24px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.1s;
+  text-transform: uppercase;
+}
+
+.retro-btn:active {
+  transform: translate(2px, 2px);
+}
+
+.retro-btn-green {
+  background: #306850;
+  color: #e0f8d0;
+  box-shadow:
+    4px 4px 0px #0f380f,
+    -2px -2px 0px #86c06c inset,
+    2px 2px 0px #1a4a2a inset;
+}
+
+.retro-btn-green:hover {
+  background: #408860;
+}
+
+.retro-btn-green:active {
+  box-shadow:
+    2px 2px 0px #0f380f,
+    -2px -2px 0px #86c06c inset,
+    2px 2px 0px #1a4a2a inset;
+}
+
+.retro-btn-red {
+  background: #8b2020;
+  color: #f8d0d0;
+  box-shadow:
+    4px 4px 0px #3a0a0a,
+    -2px -2px 0px #c06060 inset,
+    2px 2px 0px #5a1a1a inset;
+}
+
+.retro-btn-gray {
+  background: #3a3a5e;
+  color: #b0b0d0;
+  box-shadow:
+    4px 4px 0px #1a1a2e,
+    -2px -2px 0px #6a6a9e inset,
+    2px 2px 0px #2a2a4e inset;
+}
+
+.retro-btn-gray:hover {
+  background: #4a4a6e;
+}
+
+/* D-Pad styles */
+.dpad-btn {
+  width: 56px;
+  height: 56px;
+  background: #2a2a4e;
+  border: 3px solid #4a4a6e;
+  color: #86c06c;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dpad-btn:active {
+  background: #306850;
+  border-color: #86c06c;
+  transform: scale(0.95);
+}
+
+/* Animations */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes pixelFadeIn {
+  from { opacity: 0; transform: scale(0.8); }
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
-@keyframes snakeGlow {
-  0%, 100% { box-shadow: 0 0 5px rgba(74, 222, 128, 0.5); }
-  50% { box-shadow: 0 0 15px rgba(74, 222, 128, 0.8); }
+@keyframes scoreFlash {
+  0% { transform: scale(1); color: #86c06c; }
+  50% { transform: scale(1.3); color: #e0f8d0; }
+  100% { transform: scale(1); color: #86c06c; }
 }
 
-.animate-pulse-food {
-  animation: pulse-food 1s ease-in-out infinite;
+.animate-blink {
+  animation: blink 1s step-end infinite;
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+.animate-pixel-fade {
+  animation: pixelFadeIn 0.3s steps(4) forwards;
 }
 
-.animate-slideUp {
-  animation: slideUp 0.4s ease-out forwards;
+.animate-bounce-retro {
+  animation: bounce 0.5s steps(2) infinite;
 }
 
-.animate-snake-glow {
-  animation: snakeGlow 2s ease-in-out infinite;
+.animate-score-flash {
+  animation: scoreFlash 0.3s steps(3);
 }
 
-/* Prevent text selection and touch callout on game area */
+/* Game area */
 .game-area {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -44,16 +191,25 @@
   touch-action: none;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
+/* CRT screen effect */
+.crt-screen {
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
 }
 
-::-webkit-scrollbar-track {
-  background: #1a1a2e;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #4ade80;
-  border-radius: 3px;
+.crt-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  pointer-events: none;
+  z-index: 5;
 }
