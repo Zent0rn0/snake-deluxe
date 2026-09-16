@@ -8,21 +8,92 @@ import {
 
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Position = { x: number; y: number };
-type Difficulty = 'easy' | 'medium' | 'hard';
+type LevelKey = 'micro' | 'small' | 'classic' | 'large' | 'mega';
 type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 
-const GRID_SIZE = 20;
-const DIFFICULTY_SPEEDS: Record<Difficulty, number> = {
-  easy: 180,
-  medium: 120,
-  hard: 70,
+interface Level {
+  key: LevelKey;
+  label: string;
+  gridSize: number;
+  speed: number;
+  description: string;
+  stars: number;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  icon: string;
+}
+
+const LEVELS: Record<LevelKey, Level> = {
+  micro: {
+    key: 'micro',
+    label: 'МИКРО',
+    gridSize: 10,
+    speed: 220,
+    description: '10×10 · Огромные клетки',
+    stars: 1,
+    color: '#86c06c',
+    bgColor: '#1a3a1a',
+    borderColor: '#306850',
+    icon: '🟢',
+  },
+  small: {
+    key: 'small',
+    label: 'МАЛЫШ',
+    gridSize: 14,
+    speed: 160,
+    description: '14×14 · Большие клетки',
+    stars: 2,
+    color: '#a0d860',
+    bgColor: '#2a4a1a',
+    borderColor: '#508030',
+    icon: '🟡',
+  },
+  classic: {
+    key: 'classic',
+    label: 'КЛАССИК',
+    gridSize: 20,
+    speed: 120,
+    description: '20×20 · Стандарт',
+    stars: 3,
+    color: '#d4a017',
+    bgColor: '#3a3a1a',
+    borderColor: '#807020',
+    icon: '🟠',
+  },
+  large: {
+    key: 'large',
+    label: 'МАСТЕР',
+    gridSize: 28,
+    speed: 85,
+    description: '28×28 · Мелкие клетки',
+    stars: 4,
+    color: '#e07030',
+    bgColor: '#3a2a1a',
+    borderColor: '#804020',
+    icon: '🔴',
+  },
+  mega: {
+    key: 'mega',
+    label: 'ЛЕГЕНДА',
+    gridSize: 36,
+    speed: 55,
+    description: '36×36 · Крошечные клетки',
+    stars: 5,
+    color: '#e03050',
+    bgColor: '#3a1a2a',
+    borderColor: '#802040',
+    icon: '💀',
+  },
 };
 
-const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  easy: 'Легко',
-  medium: 'Средне',
-  hard: 'Сложно',
-};
+const LEVEL_LIST: Level[] = [
+  LEVELS.micro,
+  LEVELS.small,
+  LEVELS.classic,
+  LEVELS.large,
+  LEVELS.mega,
+];
 
 function getRandomPosition(gridSize: number, snake: Position[]): Position {
   let pos: Position;
@@ -37,7 +108,7 @@ function getRandomPosition(gridSize: number, snake: Position[]): Position {
 
 function App() {
   const [gameState, setGameState] = useState<GameState>('menu');
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [currentLevel, setCurrentLevel] = useState<LevelKey>('classic');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
     const saved = localStorage.getItem('snake-highscore-retro');
@@ -54,6 +125,9 @@ function App() {
   const [scoreFlash, setScoreFlash] = useState(false);
   const [isNewRecord, setIsNewRecord] = useState(false);
 
+  const level = LEVELS[currentLevel];
+  const gridSize = level.gridSize;
+
   const directionRef = useRef<Direction>('RIGHT');
   const gameLoopRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -61,26 +135,27 @@ function App() {
   const lastDirectionRef = useRef<Direction>('RIGHT');
   const foodAnimFrame = useRef(0);
 
-  // Sync sound setting
+  // Sync sound
   useEffect(() => {
     retroSounds.setEnabled(soundEnabled);
   }, [soundEnabled]);
 
   // Initialize game
   const initGame = useCallback(() => {
+    const mid = Math.floor(gridSize / 2);
     const initialSnake = [
-      { x: 10, y: 10 },
-      { x: 9, y: 10 },
-      { x: 8, y: 10 },
+      { x: mid, y: mid },
+      { x: mid - 1, y: mid },
+      { x: mid - 2, y: mid },
     ];
     setSnake(initialSnake);
-    setFood(getRandomPosition(GRID_SIZE, initialSnake));
+    setFood(getRandomPosition(gridSize, initialSnake));
     setScore(0);
     setIsNewRecord(false);
     setDirection('RIGHT');
     directionRef.current = 'RIGHT';
     lastDirectionRef.current = 'RIGHT';
-  }, []);
+  }, [gridSize]);
 
   // Start game
   const startGame = useCallback(() => {
@@ -120,21 +195,21 @@ function App() {
 
     const borderW = 6;
     const gameArea = canvas.width - borderW * 2;
-    const cellSize = gameArea / GRID_SIZE;
+    const cellSize = gameArea / gridSize;
 
     // Clear
     ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw checkerboard background
+    // Draw checkerboard
     ctx.save();
     ctx.translate(borderW, borderW);
     drawCheckerboard(ctx, gameArea, gameArea, cellSize);
 
-    // Draw food with animation
+    // Draw food
     foodAnimFrame.current = (foodAnimFrame.current + 1) % 60;
-    const foodPixelSize = cellSize / 10;
-    const foodOffset = Math.sin(foodAnimFrame.current * 0.1) * 1;
+    const foodPixelSize = Math.max(1, Math.floor(cellSize / 10));
+    const foodOffset = Math.sin(foodAnimFrame.current * 0.1) * (cellSize > 20 ? 1 : 0);
     drawSprite(
       ctx,
       FOOD_APPLE,
@@ -144,7 +219,7 @@ function App() {
     );
 
     // Draw snake
-    const spritePixelSize = cellSize / 10;
+    const spritePixelSize = Math.max(1, Math.floor(cellSize / 10));
 
     snake.forEach((segment, index) => {
       const x = segment.x * cellSize;
@@ -153,7 +228,6 @@ function App() {
       const offsetY = (cellSize - spritePixelSize * 10) / 2;
 
       if (index === 0) {
-        // Head
         let headSprite;
         switch (directionRef.current) {
           case 'LEFT': headSprite = SNAKE_HEAD_LEFT; break;
@@ -163,19 +237,15 @@ function App() {
         }
         drawSprite(ctx, headSprite, x + offsetX, y + offsetY, spritePixelSize);
       } else if (index === snake.length - 1 && snake.length > 1) {
-        // Tail
         drawSprite(ctx, SNAKE_TAIL, x + offsetX, y + offsetY, spritePixelSize);
       } else {
-        // Body
         drawSprite(ctx, SNAKE_BODY, x + offsetX, y + offsetY, spritePixelSize);
       }
     });
 
     ctx.restore();
-
-    // Draw border
     drawPixelBorder(ctx, canvas.width, canvas.height, borderW);
-  }, [snake, food]);
+  }, [snake, food, gridSize]);
 
   // Game loop
   useEffect(() => {
@@ -187,7 +257,7 @@ function App() {
       return;
     }
 
-    const speed = DIFFICULTY_SPEEDS[difficulty];
+    const speed = level.speed;
 
     gameLoopRef.current = window.setInterval(() => {
       setSnake(prevSnake => {
@@ -202,13 +272,11 @@ function App() {
           case 'RIGHT': head.x += 1; break;
         }
 
-        // Wall collision
-        if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+        if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
           gameOver();
           return prevSnake;
         }
 
-        // Self collision
         if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
           gameOver();
           return prevSnake;
@@ -216,10 +284,9 @@ function App() {
 
         const newSnake = [head, ...prevSnake];
 
-        // Food collision
         if (head.x === food.x && head.y === food.y) {
           setScore(prev => prev + 10);
-          setFood(getRandomPosition(GRID_SIZE, newSnake));
+          setFood(getRandomPosition(gridSize, newSnake));
           retroSounds.playEat();
           setScoreFlash(true);
           setTimeout(() => setScoreFlash(false), 300);
@@ -237,9 +304,9 @@ function App() {
         gameLoopRef.current = null;
       }
     };
-  }, [gameState, difficulty, food, gameOver]);
+  }, [gameState, level.speed, food, gridSize, gameOver]);
 
-  // Animation loop for food
+  // Animation loop
   useEffect(() => {
     let animFrame: number;
     const animate = () => {
@@ -363,6 +430,11 @@ function App() {
     if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; setDirection('RIGHT'); retroSounds.playTurn(); }
   };
 
+  // Render stars
+  const renderStars = (count: number) => {
+    return '★'.repeat(count) + '☆'.repeat(5 - count);
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a1a] flex flex-col items-center justify-center p-3 overflow-hidden">
       {/* Title */}
@@ -386,12 +458,11 @@ function App() {
             </span>
           </div>
           <div className="flex flex-col items-center">
-            <span className="font-retro text-[#86c06c] text-xs">УРОВЕНЬ</span>
+            <span className="font-retro text-[#86c06c] text-xs">ПОЛЕ</span>
             <span className="font-pixel text-[#e0f8d0] text-[10px]">
-              {DIFFICULTY_LABELS[difficulty]}
+              {gridSize}×{gridSize}
             </span>
           </div>
-          {/* Sound toggle */}
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className="font-retro text-lg text-[#86c06c] hover:text-[#e0f8d0] transition-colors"
@@ -415,27 +486,50 @@ function App() {
 
         {/* Menu overlay */}
         {gameState === 'menu' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade">
-            <div className="text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade overflow-y-auto py-4">
+            <div className="text-center w-full px-4">
               <div className="font-pixel text-[#86c06c] text-2xl mb-2 animate-bounce-retro">🐍</div>
-              <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg mb-6">ЗМЕЙКА</h2>
+              <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg mb-4">ВЫБОР УРОВНЯ</h2>
 
-              {/* Difficulty */}
-              <div className="mb-6">
-                <p className="font-retro text-[#86c06c] text-lg mb-3">ВЫБЕРИТЕ УРОВЕНЬ:</p>
-                <div className="flex gap-2 justify-center">
-                  {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => (
-                    <button
-                      key={diff}
-                      onClick={() => setDifficulty(diff)}
-                      className={`retro-btn text-[10px] ${
-                        difficulty === diff ? 'retro-btn-green' : 'retro-btn-gray'
-                      }`}
-                    >
-                      {DIFFICULTY_LABELS[diff]}
-                    </button>
-                  ))}
-                </div>
+              {/* Level selection */}
+              <div className="flex flex-col gap-2 mb-5 max-h-[280px] overflow-y-auto px-2">
+                {LEVEL_LIST.map((lvl) => (
+                  <button
+                    key={lvl.key}
+                    onClick={() => setCurrentLevel(lvl.key)}
+                    className="flex items-center justify-between px-3 py-2 rounded transition-all text-left"
+                    style={{
+                      background: currentLevel === lvl.key ? lvl.bgColor : '#1a1a2e',
+                      border: `2px solid ${currentLevel === lvl.key ? lvl.borderColor : '#2a2a4e'}`,
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{lvl.icon}</span>
+                      <div>
+                        <div
+                          className="font-pixel text-[10px]"
+                          style={{ color: currentLevel === lvl.key ? lvl.color : '#6a6a9e' }}
+                        >
+                          {lvl.label}
+                        </div>
+                        <div className="font-retro text-xs text-[#567c45]">
+                          {lvl.description}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span
+                        className="font-retro text-sm tracking-wider"
+                        style={{ color: lvl.color }}
+                      >
+                        {renderStars(lvl.stars)}
+                      </span>
+                      <span className="font-retro text-[10px] text-[#567c45]">
+                        {lvl.speed}мс
+                      </span>
+                    </div>
+                  </button>
+                ))}
               </div>
 
               <button
@@ -445,7 +539,7 @@ function App() {
                 ▶ СТАРТ
               </button>
 
-              <p className="font-retro text-[#567c45] text-sm mt-4">
+              <p className="font-retro text-[#567c45] text-sm mt-3">
                 Стрелки / WASD / Свайпы
               </p>
               <p className="font-retro text-[#306850] text-xs mt-1 animate-blink">
@@ -485,6 +579,9 @@ function App() {
               <div className="font-pixel text-[#c03030] text-base mb-3">GAME OVER</div>
               <div className="font-retro text-[#e0f8d0] text-xl mb-1">
                 СЧЁТ: <span className="text-[#86c06c]">{score}</span>
+              </div>
+              <div className="font-retro text-[#567c45] text-sm">
+                Уровень: {level.label} ({gridSize}×{gridSize})
               </div>
               {isNewRecord && (
                 <div className="font-pixel text-[#d4a017] text-[10px] mt-2 animate-bounce-retro">
@@ -550,7 +647,7 @@ function App() {
             >
               ◀
             </button>
-            <div className="w-[56px] h-[56px] bg-[#1a1a2e] border-t-3 border-b-3 border-[#4a4a6e]" />
+            <div className="w-[56px] h-[56px] bg-[#1a1a2e] border-t-[3px] border-b-[3px] border-[#4a4a6e]" />
             <button
               onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('RIGHT'); }}
               className="dpad-btn rounded-br-lg"
