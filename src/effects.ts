@@ -21,8 +21,11 @@ export class ParticleSystem {
         this.particles.shift();
       }
 
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const speed = type === 'explosion' ? 2 + Math.random() * 4 : 1 + Math.random() * 2;
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.8;
+      const speed = type === 'explosion' ? 3 + Math.random() * 6 :
+                    type === 'food' ? 2 + Math.random() * 4 :
+                    type === 'spark' ? 4 + Math.random() * 5 :
+                    1.5 + Math.random() * 3;
 
       this.particles.push({
         x,
@@ -30,8 +33,10 @@ export class ParticleSystem {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1,
-        maxLife: type === 'explosion' ? 30 : type === 'food' ? 40 : 20,
-        size: type === 'explosion' ? 3 + Math.random() * 3 : 2 + Math.random() * 2,
+        maxLife: type === 'explosion' ? 40 : type === 'food' ? 50 : type === 'spark' ? 25 : 30,
+        size: type === 'explosion' ? 4 + Math.random() * 4 :
+              type === 'spark' ? 2 + Math.random() * 3 :
+              2 + Math.random() * 3,
         color: this.getColor(type),
         type,
       });
@@ -40,10 +45,10 @@ export class ParticleSystem {
 
   private getColor(type: Particle['type']): string {
     switch (type) {
-      case 'spark': return '#86c06c';
-      case 'trail': return '#4ade80';
-      case 'explosion': return '#ff4444';
-      case 'food': return '#ffd700';
+      case 'spark': return '#a0ff70';
+      case 'trail': return '#60ff90';
+      case 'explosion': return '#ff3333';
+      case 'food': return '#ffdd00';
     }
   }
 
@@ -65,11 +70,12 @@ export class ParticleSystem {
   draw(ctx: CanvasRenderingContext2D) {
     for (const p of this.particles) {
       ctx.save();
-      ctx.globalAlpha = p.life;
+      ctx.globalAlpha = Math.min(1, p.life * 1.5);
       ctx.fillStyle = p.color;
       ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      ctx.shadowBlur = 12 + p.life * 8;
+      const size = p.size * (0.5 + p.life * 0.5);
+      ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
       ctx.restore();
     }
   }
@@ -82,18 +88,18 @@ export class ParticleSystem {
 // Screen shake effect
 export class ScreenShake {
   intensity = 0;
-  decay = 0.9;
+  decay = 0.85;
   offsetX = 0;
   offsetY = 0;
 
-  trigger(intensity: number = 5) {
+  trigger(intensity: number = 8) {
     this.intensity = intensity;
   }
 
   update() {
     if (this.intensity > 0.1) {
-      this.offsetX = (Math.random() - 0.5) * this.intensity * 2;
-      this.offsetY = (Math.random() - 0.5) * this.intensity * 2;
+      this.offsetX = (Math.random() - 0.5) * this.intensity * 2.5;
+      this.offsetY = (Math.random() - 0.5) * this.intensity * 2.5;
       this.intensity *= this.decay;
     } else {
       this.offsetX = 0;

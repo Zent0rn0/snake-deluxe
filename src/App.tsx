@@ -30,7 +30,7 @@ const LEVELS: Record<LevelKey, Level> = {
     key: 'micro',
     label: 'МИКРО',
     gridSize: 10,
-    speed: 220,
+    speed: 150,
     description: '10×10 · Огромные клетки',
     stars: 1,
     color: '#86c06c',
@@ -42,7 +42,7 @@ const LEVELS: Record<LevelKey, Level> = {
     key: 'small',
     label: 'МАЛЫШ',
     gridSize: 14,
-    speed: 160,
+    speed: 110,
     description: '14×14 · Большие клетки',
     stars: 2,
     color: '#a0d860',
@@ -54,7 +54,7 @@ const LEVELS: Record<LevelKey, Level> = {
     key: 'classic',
     label: 'КЛАССИК',
     gridSize: 20,
-    speed: 120,
+    speed: 80,
     description: '20×20 · Стандарт',
     stars: 3,
     color: '#d4a017',
@@ -66,7 +66,7 @@ const LEVELS: Record<LevelKey, Level> = {
     key: 'large',
     label: 'МАСТЕР',
     gridSize: 28,
-    speed: 85,
+    speed: 55,
     description: '28×28 · Мелкие клетки',
     stars: 4,
     color: '#e07030',
@@ -78,7 +78,7 @@ const LEVELS: Record<LevelKey, Level> = {
     key: 'mega',
     label: 'ЛЕГЕНДА',
     gridSize: 36,
-    speed: 55,
+    speed: 35,
     description: '36×36 · Крошечные клетки',
     stars: 5,
     color: '#e03050',
@@ -145,6 +145,12 @@ function App() {
   const particlesRef = useRef(new ParticleSystem());
   const shakeRef = useRef(new ScreenShake());
   const bloomRef = useRef(new BloomEffect());
+
+  // Dynamic motion effects
+  const squashStretchRef = useRef({ scaleX: 1, scaleY: 1, targetScaleX: 1, targetScaleY: 1 });
+  const whipRef = useRef(0); // Tail whip intensity
+  const impactFlashRef = useRef(0); // Flash on eat
+  const turnSnapRef = useRef(0); // Snap effect on turn
 
   // Canvas refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -303,6 +309,15 @@ function App() {
         setScoreFlash(true);
         setTimeout(() => setScoreFlash(false), 300);
 
+        // Impact effects
+        impactFlashRef.current = 1;
+        whipRef.current = 1;
+        shakeRef.current.trigger(6);
+
+        // Squash on eat
+        squashStretchRef.current.targetScaleX = 1.4;
+        squashStretchRef.current.targetScaleY = 0.7;
+
         // Emit food particles
         const canvas = canvasRef.current;
         if (canvas) {
@@ -311,7 +326,8 @@ function App() {
           const cellSize = gameArea / gridSize;
           const px = borderW + head.x * cellSize + cellSize / 2;
           const py = borderW + head.y * cellSize + cellSize / 2;
-          particlesRef.current.emit(px, py, 'food', 15);
+          particlesRef.current.emit(px, py, 'food', 25);
+          particlesRef.current.emit(px, py, 'spark', 10);
         }
       } else {
         newSnake.pop();
@@ -370,6 +386,24 @@ function App() {
       shakeRef.current.update();
       foodAnimRef.current += dt * 0.004;
 
+      // Update squash & stretch with spring physics (snappier)
+      const squash = squashStretchRef.current;
+      const springSpeed = 0.25;
+      const damping = 0.8;
+      squash.scaleX += (squash.targetScaleX - squash.scaleX) * springSpeed;
+      squash.scaleY += (squash.targetScaleY - squash.scaleY) * springSpeed;
+      squash.targetScaleX += (1 - squash.targetScaleX) * damping * 0.15;
+      squash.targetScaleY += (1 - squash.targetScaleY) * damping * 0.15;
+
+      // Update whip effect (faster decay for snappier feel)
+      whipRef.current *= 0.8;
+
+      // Update impact flash (quick fade for punchy feel)
+      impactFlashRef.current *= 0.82;
+
+      // Update turn snap (very quick for snappy turns)
+      turnSnapRef.current *= 0.75;
+
       const borderW = 6;
       const gameArea = canvas.width - borderW * 2;
       const cellSize = gameArea / gridSize;
@@ -413,27 +447,55 @@ function App() {
       const smoothT = smoothstep(t);
 
       // Emit trail particles behind snake head (only while playing)
-      if (gameStateRef.current === 'playing' && interpSnake.length > 0 && Math.random() < 0.3) {
+      if (gameStateRef.current === 'playing' && interpSnake.length > 0) {
         const headSeg = interpSnake[0];
         const hx = (lerp(headSeg.prevX, headSeg.x, smoothT) + 0.5) * cellSize;
         const hy = (lerp(headSeg.prevY, headSeg.y, smoothT) + 0.5) * cellSize;
-        particlesRef.current.emit(hx, hy, 'trail', 1);
+
+        // Aggressive trail - more particles
+        if (Math.random() < 0.7) {
+          particlesRef.current.emit(hx, hy, 'trail', 3);
+        }
+
+        // Extra sparks on turns
+        if (turnSnapRef.current > 0.3 && Math.random() < 0.5) {
+          particlesRef.current.emit(hx, hy, 'spark', 2);
+        }
+
+        // Whip sparks from tail
+        if (whipRef.current > 0.3 && interpSnake.length > 2) {
+          const tailSeg = interpSnake[interpSnake.length - 1];
+          const tx = (lerp(tailSeg.prevX, tailSeg.x, smoothT) + 0.5) * cellSize;
+          const ty = (lerp(tailSeg.prevY, tailSeg.y, smoothT) + 0.5) * cellSize;
+          if (Math.random() < 0.4) {
+            particlesRef.current.emit(tx, ty, 'spark', 1);
+          }
+        }
       }
 
       // Draw snake body with glow
       ctx.save();
       ctx.shadowColor = '#4ade80';
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 8 + turnSnapRef.current * 15 + whipRef.current * 5;
+
+      const headSquash = squashStretchRef.current;
 
       for (let i = interpSnake.length - 1; i >= 0; i--) {
         const seg = interpSnake[i];
-        const drawX = lerp(seg.prevX, seg.x, smoothT) * cellSize;
-        const drawY = lerp(seg.prevY, seg.y, smoothT) * cellSize;
+        let drawX = lerp(seg.prevX, seg.x, smoothT) * cellSize;
+        let drawY = lerp(seg.prevY, seg.y, smoothT) * cellSize;
         const offsetX = (cellSize - spritePixelSize * 10) / 2;
         const offsetY = (cellSize - spritePixelSize * 10) / 2;
 
         if (i === 0) {
-          // Head
+          // Head with squash & stretch
+          ctx.save();
+          const headCenterX = drawX + cellSize / 2;
+          const headCenterY = drawY + cellSize / 2;
+          ctx.translate(headCenterX, headCenterY);
+          ctx.scale(headSquash.scaleX, headSquash.scaleY);
+          ctx.translate(-headCenterX, -headCenterY);
+
           let headSprite;
           switch (directionRef.current) {
             case 'LEFT': headSprite = SNAKE_HEAD_LEFT; break;
@@ -442,10 +504,22 @@ function App() {
             default: headSprite = SNAKE_HEAD_RIGHT;
           }
           drawSprite(ctx, headSprite, drawX + offsetX, drawY + offsetY, spritePixelSize);
+          ctx.restore();
         } else if (i === interpSnake.length - 1 && interpSnake.length > 1) {
+          // Tail with whip effect
+          ctx.save();
+          const whipOffset = whipRef.current * Math.sin(i * 0.5 + foodAnimRef.current * 10) * 5;
+          const tailCenterX = drawX + cellSize / 2 + whipOffset;
+          const tailCenterY = drawY + cellSize / 2;
+          ctx.translate(tailCenterX, tailCenterY);
+          ctx.rotate(whipOffset * 0.15);
+          ctx.translate(-tailCenterX, -tailCenterY);
           drawSprite(ctx, SNAKE_TAIL, drawX + offsetX, drawY + offsetY, spritePixelSize);
+          ctx.restore();
         } else {
-          drawSprite(ctx, SNAKE_BODY, drawX + offsetX, drawY + offsetY, spritePixelSize);
+          // Body with wave effect
+          const waveOffset = whipRef.current * Math.sin(i * 0.3 + foodAnimRef.current * 8) * 2.5;
+          drawSprite(ctx, SNAKE_BODY, drawX + offsetX + waveOffset, drawY + offsetY, spritePixelSize);
         }
       }
       ctx.restore();
@@ -462,8 +536,39 @@ function App() {
 
       ctx.restore(); // shake
 
-      // Bloom effect
-      bloomRef.current.apply(ctx, canvas, 0.3);
+      // Impact flash overlay
+      if (impactFlashRef.current > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = impactFlashRef.current * 0.4;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+
+      // Speed lines effect during turns
+      if (turnSnapRef.current > 0.3) {
+        ctx.save();
+        ctx.globalAlpha = turnSnapRef.current * 0.6;
+        ctx.strokeStyle = '#86c06c';
+        ctx.lineWidth = 2;
+
+        const headSeg = interpSnake[0];
+        const headX = borderW + (lerp(headSeg.prevX, headSeg.x, smoothT) + 0.5) * cellSize;
+        const headY = borderW + (lerp(headSeg.prevY, headSeg.y, smoothT) + 0.5) * cellSize;
+
+        for (let i = 0; i < 8; i++) {
+          const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.3;
+          const length = 10 + turnSnapRef.current * 20;
+          ctx.beginPath();
+          ctx.moveTo(headX + Math.cos(angle) * 5, headY + Math.sin(angle) * 5);
+          ctx.lineTo(headX + Math.cos(angle) * length, headY + Math.sin(angle) * length);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // Bloom effect (stronger during impacts)
+      bloomRef.current.apply(ctx, canvas, 0.35 + impactFlashRef.current * 0.4 + turnSnapRef.current * 0.2);
 
       // CRT vignette
       const gradient = ctx.createRadialGradient(
@@ -543,25 +648,49 @@ function App() {
         case 'w':
         case 'W':
           e.preventDefault();
-          if (lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
+          if (lastDir !== 'DOWN') {
+            directionRef.current = 'UP';
+            retroSounds.playTurn();
+            turnSnapRef.current = 1;
+            squashStretchRef.current.targetScaleX = 0.8;
+            squashStretchRef.current.targetScaleY = 1.3;
+          }
           break;
         case 'ArrowDown':
         case 's':
         case 'S':
           e.preventDefault();
-          if (lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
+          if (lastDir !== 'UP') {
+            directionRef.current = 'DOWN';
+            retroSounds.playTurn();
+            turnSnapRef.current = 1;
+            squashStretchRef.current.targetScaleX = 0.8;
+            squashStretchRef.current.targetScaleY = 1.3;
+          }
           break;
         case 'ArrowLeft':
         case 'a':
         case 'A':
           e.preventDefault();
-          if (lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
+          if (lastDir !== 'RIGHT') {
+            directionRef.current = 'LEFT';
+            retroSounds.playTurn();
+            turnSnapRef.current = 1;
+            squashStretchRef.current.targetScaleX = 1.3;
+            squashStretchRef.current.targetScaleY = 0.8;
+          }
           break;
         case 'ArrowRight':
         case 'd':
         case 'D':
           e.preventDefault();
-          if (lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
+          if (lastDir !== 'LEFT') {
+            directionRef.current = 'RIGHT';
+            retroSounds.playTurn();
+            turnSnapRef.current = 1;
+            squashStretchRef.current.targetScaleX = 1.3;
+            squashStretchRef.current.targetScaleY = 0.8;
+          }
           break;
       }
     };
@@ -589,11 +718,35 @@ function App() {
     const lastDir = lastDirectionRef.current;
 
     if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 0 && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
-      else if (dx < 0 && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
+      if (dx > 0 && lastDir !== 'LEFT') {
+        directionRef.current = 'RIGHT';
+        retroSounds.playTurn();
+        turnSnapRef.current = 1;
+        squashStretchRef.current.targetScaleX = 1.3;
+        squashStretchRef.current.targetScaleY = 0.8;
+      }
+      else if (dx < 0 && lastDir !== 'RIGHT') {
+        directionRef.current = 'LEFT';
+        retroSounds.playTurn();
+        turnSnapRef.current = 1;
+        squashStretchRef.current.targetScaleX = 1.3;
+        squashStretchRef.current.targetScaleY = 0.8;
+      }
     } else {
-      if (dy > 0 && lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
-      else if (dy < 0 && lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
+      if (dy > 0 && lastDir !== 'UP') {
+        directionRef.current = 'DOWN';
+        retroSounds.playTurn();
+        turnSnapRef.current = 1;
+        squashStretchRef.current.targetScaleX = 0.8;
+        squashStretchRef.current.targetScaleY = 1.3;
+      }
+      else if (dy < 0 && lastDir !== 'DOWN') {
+        directionRef.current = 'UP';
+        retroSounds.playTurn();
+        turnSnapRef.current = 1;
+        squashStretchRef.current.targetScaleX = 0.8;
+        squashStretchRef.current.targetScaleY = 1.3;
+      }
     }
 
     touchStartRef.current = null;
@@ -603,10 +756,34 @@ function App() {
   const handleDirectionButton = (dir: Direction) => {
     if (gameStateRef.current !== 'playing') return;
     const lastDir = lastDirectionRef.current;
-    if (dir === 'UP' && lastDir !== 'DOWN') { directionRef.current = 'UP'; retroSounds.playTurn(); }
-    if (dir === 'DOWN' && lastDir !== 'UP') { directionRef.current = 'DOWN'; retroSounds.playTurn(); }
-    if (dir === 'LEFT' && lastDir !== 'RIGHT') { directionRef.current = 'LEFT'; retroSounds.playTurn(); }
-    if (dir === 'RIGHT' && lastDir !== 'LEFT') { directionRef.current = 'RIGHT'; retroSounds.playTurn(); }
+    if (dir === 'UP' && lastDir !== 'DOWN') {
+      directionRef.current = 'UP';
+      retroSounds.playTurn();
+      turnSnapRef.current = 1;
+      squashStretchRef.current.targetScaleX = 0.8;
+      squashStretchRef.current.targetScaleY = 1.3;
+    }
+    if (dir === 'DOWN' && lastDir !== 'UP') {
+      directionRef.current = 'DOWN';
+      retroSounds.playTurn();
+      turnSnapRef.current = 1;
+      squashStretchRef.current.targetScaleX = 0.8;
+      squashStretchRef.current.targetScaleY = 1.3;
+    }
+    if (dir === 'LEFT' && lastDir !== 'RIGHT') {
+      directionRef.current = 'LEFT';
+      retroSounds.playTurn();
+      turnSnapRef.current = 1;
+      squashStretchRef.current.targetScaleX = 1.3;
+      squashStretchRef.current.targetScaleY = 0.8;
+    }
+    if (dir === 'RIGHT' && lastDir !== 'LEFT') {
+      directionRef.current = 'RIGHT';
+      retroSounds.playTurn();
+      turnSnapRef.current = 1;
+      squashStretchRef.current.targetScaleX = 1.3;
+      squashStretchRef.current.targetScaleY = 0.8;
+    }
   };
 
   const renderStars = (count: number) => {
