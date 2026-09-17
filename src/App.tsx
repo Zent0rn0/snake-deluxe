@@ -10,7 +10,7 @@ import { ParticleSystem, ScreenShake, BloomEffect, lerp, smoothstep, easeOutCubi
 type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Position = { x: number; y: number };
 type LevelKey = 'micro' | 'small' | 'classic' | 'large' | 'mega';
-type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
+type GameState = 'welcome' | 'menu' | 'playing' | 'paused' | 'gameover';
 
 interface Level {
   key: LevelKey;
@@ -116,7 +116,7 @@ interface InterpolatedSegment {
 }
 
 function App() {
-  const [gameState, setGameState] = useState<GameState>('menu');
+  const [gameState, setGameState] = useState<GameState>('welcome');
   const [currentLevel, setCurrentLevel] = useState<LevelKey>('classic');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
@@ -128,6 +128,7 @@ function App() {
   const [isNewRecord, setIsNewRecord] = useState(false);
   const [fps, setFps] = useState(0);
   const [showFps, setShowFps] = useState(false);
+  const [welcomeOpacity, setWelcomeOpacity] = useState(0);
 
   const level = LEVELS[currentLevel];
   const gridSize = level.gridSize;
@@ -139,7 +140,7 @@ function App() {
   const lastDirectionRef = useRef<Direction>('RIGHT');
   const interpolatedSnakeRef = useRef<InterpolatedSegment[]>([]);
   const lastTickTimeRef = useRef(0);
-  const gameStateRef = useRef<GameState>('menu');
+  const gameStateRef = useRef<GameState>('welcome');
 
   // Effects
   const particlesRef = useRef(new ParticleSystem());
@@ -165,6 +166,19 @@ function App() {
   // Sync state refs
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
   useEffect(() => { retroSounds.setEnabled(soundEnabled); }, [soundEnabled]);
+
+  // Welcome screen animation
+  useEffect(() => {
+    if (gameState === 'welcome') {
+      setWelcomeOpacity(0);
+      const fadeIn = setTimeout(() => setWelcomeOpacity(1), 100);
+      const goToMenu = setTimeout(() => setGameState('menu'), 3000);
+      return () => {
+        clearTimeout(fadeIn);
+        clearTimeout(goToMenu);
+      };
+    }
+  }, [gameState]);
 
   // Initialize game
   const initGame = useCallback(() => {
@@ -730,6 +744,14 @@ function App() {
         }
       }
 
+      if (gameStateRef.current === 'welcome') {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setGameState('menu');
+          return;
+        }
+      }
+
       if (gameStateRef.current === 'gameover' || gameStateRef.current === 'menu') {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -890,44 +912,94 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a1a] flex flex-col items-center justify-center p-3 overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a1a] via-[#1a1a2e] to-[#0a0a1a] flex flex-col items-center justify-center p-3 overflow-hidden">
       {/* Title */}
-      <div className="w-full max-w-[500px] mb-3">
-        <h1 className="font-pixel text-center text-green-400 text-lg md:text-xl mb-3 tracking-wider">
-          🐍 ЗМЕЙКА
-        </h1>
+      <div className="w-full max-w-[500px] mb-4">
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#306850] to-transparent"></div>
+          <h1 className="font-pixel text-green-400 text-lg md:text-xl tracking-wider flex items-center gap-2">
+            <span className="animate-bounce-retro">🐍</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400">ЗМЕЙКА</span>
+          </h1>
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#306850] to-transparent"></div>
+        </div>
 
-        {/* Score panel */}
-        <div className="flex justify-between items-center bg-[#1a1a2e] border-2 border-[#306850] rounded px-3 py-2">
-          <div className="flex flex-col items-center">
-            <span className="font-retro text-[#86c06c] text-xs">СЧЁТ</span>
-            <span className={`font-pixel text-[#e0f8d0] text-sm ${scoreFlash ? 'animate-score-flash' : ''}`}>
-              {score.toString().padStart(4, '0')}
-            </span>
+        {/* Enhanced Score panel */}
+        <div className="ui-panel rounded-lg px-4 py-3">
+          <div className="flex justify-between items-center">
+            {/* Score */}
+            <div className="flex flex-col items-center min-w-[80px]">
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-xs">🎯</span>
+                <span className="font-retro text-[#86c06c] text-xs">СЧЁТ</span>
+              </div>
+              <span className={`font-pixel text-[#e0f8d0] text-lg ${scoreFlash ? 'animate-score-flash' : ''}`}>
+                {score.toString().padStart(4, '0')}
+              </span>
+            </div>
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-gradient-to-b from-transparent via-[#306850] to-transparent"></div>
+
+            {/* High Score */}
+            <div className="flex flex-col items-center min-w-[80px]">
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-xs">🏆</span>
+                <span className="font-retro text-[#d4a017] text-xs">РЕКОРД</span>
+              </div>
+              <span className="font-pixel text-[#ffd700] text-lg">
+                {highScore.toString().padStart(4, '0')}
+              </span>
+            </div>
+
+            {/* Divider */}
+            <div className="h-12 w-px bg-gradient-to-b from-transparent via-[#306850] to-transparent"></div>
+
+            {/* Level Info */}
+            <div className="flex flex-col items-center min-w-[80px]">
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-xs">{level.icon}</span>
+                <span className="font-retro text-[#86c06c] text-xs">{level.label}</span>
+              </div>
+              <span className="font-pixel text-[#e0f8d0] text-sm">
+                {gridSize}×{gridSize}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="font-retro text-[#86c06c] text-xs">РЕКОРД</span>
-            <span className="font-pixel text-[#d4a017] text-sm">
-              {highScore.toString().padStart(4, '0')}
-            </span>
+
+          {/* Bottom info bar */}
+          <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#306850]/30">
+            <div className="flex items-center gap-2">
+              <span className="font-retro text-[#567c45] text-xs">СКОРОСТЬ:</span>
+              <span className="font-pixel text-[#86c06c] text-xs">{level.speed}мс</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-retro text-[#567c45] text-xs">СЛОЖНОСТЬ:</span>
+              <span className="font-retro text-sm tracking-wider" style={{ color: level.color }}>
+                {'★'.repeat(level.stars)}{'☆'.repeat(5 - level.stars)}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="font-retro text-[#86c06c] text-xs">ПОЛЕ</span>
-            <span className="font-pixel text-[#e0f8d0] text-[10px]">
-              {gridSize}×{gridSize}
-            </span>
-          </div>
+        </div>
+
+        {/* Control buttons */}
+        <div className="flex justify-between items-center mt-2 px-2">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="font-retro text-lg text-[#86c06c] hover:text-[#e0f8d0] transition-colors"
+            className="ui-panel rounded-lg px-3 py-2 hover:border-[#86c06c] transition-colors group"
           >
-            {soundEnabled ? '🔊' : '🔇'}
+            <span className="font-retro text-lg group-hover:scale-110 transition-transform inline-block">
+              {soundEnabled ? '🔊' : '🔇'}
+            </span>
           </button>
+          
           <button
             onClick={() => setShowFps(!showFps)}
-            className="font-retro text-xs text-[#567c45] hover:text-[#86c06c] transition-colors"
+            className="ui-panel rounded-lg px-3 py-2 hover:border-[#86c06c] transition-colors"
           >
-            {showFps ? `${fps} FPS` : 'FPS'}
+            <span className="font-retro text-xs text-[#567c45] group-hover:text-[#86c06c]">
+              {showFps ? `${fps} FPS` : '📊 FPS'}
+            </span>
           </button>
         </div>
       </div>
@@ -943,29 +1015,86 @@ function App() {
           />
         </div>
 
+        {/* Welcome screen */}
+        {gameState === 'welcome' && (
+          <div 
+            className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a] via-[#1a1a2e] to-[#0a0a1a] transition-opacity duration-1000"
+            style={{ opacity: welcomeOpacity }}
+            onClick={() => setGameState('menu')}
+          >
+            <div className="text-center px-6">
+              {/* Animated snake icon */}
+              <div className="relative mb-8">
+                <div className="font-pixel text-6xl md:text-7xl animate-bounce-retro mb-4">🐍</div>
+                <div className="absolute inset-0 blur-2xl opacity-50 bg-gradient-to-r from-green-500 via-emerald-500 to-green-500 rounded-full"></div>
+              </div>
+              
+              {/* Title */}
+              <h1 className="font-pixel text-3xl md:text-4xl text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-green-400 mb-4 animate-pulse">
+                ЗМЕЙКА
+              </h1>
+              
+              {/* Subtitle */}
+              <p className="font-retro text-xl md:text-2xl text-[#86c06c] mb-8">
+                РЕТРО АРКАДА
+              </p>
+              
+              {/* Decorative elements */}
+              <div className="flex justify-center gap-4 mb-8">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+              
+              {/* Start prompt */}
+              <div className="space-y-3">
+                <p className="font-pixel text-sm text-[#e0f8d0] animate-blink">
+                  НАЖМИТЕ ДЛЯ ПРОДОЛЖЕНИЯ
+                </p>
+                <p className="font-retro text-sm text-[#567c45]">
+                  или нажмите ENTER
+                </p>
+              </div>
+              
+              {/* Version info */}
+              <div className="mt-12 font-retro text-xs text-[#306850]">
+                v2.0 · 2025
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Menu overlay */}
         {gameState === 'menu' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade overflow-y-auto py-4">
             <div className="text-center w-full px-4">
-              <div className="font-pixel text-[#86c06c] text-2xl mb-2 animate-bounce-retro">🐍</div>
-              <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg mb-4">ВЫБОР УРОВНЯ</h2>
+              {/* Header */}
+              <div className="relative mb-6">
+                <div className="font-pixel text-4xl mb-2 animate-bounce-retro">🐍</div>
+                <h2 className="font-pixel text-[#e0f8d0] text-base md:text-lg">ВЫБОР УРОВНЯ</h2>
+                <div className="h-px w-32 mx-auto mt-2 bg-gradient-to-r from-transparent via-[#86c06c] to-transparent"></div>
+              </div>
 
-              <div className="flex flex-col gap-2 mb-5 max-h-[280px] overflow-y-auto px-2">
+              {/* Level selection */}
+              <div className="flex flex-col gap-2 mb-6 max-h-[320px] overflow-y-auto px-2">
                 {LEVEL_LIST.map((lvl) => (
                   <button
                     key={lvl.key}
                     onClick={() => setCurrentLevel(lvl.key)}
-                    className="flex items-center justify-between px-3 py-2 rounded transition-all text-left"
+                    className="flex items-center justify-between px-4 py-3 rounded-lg transition-all text-left group hover:scale-[1.02]"
                     style={{
-                      background: currentLevel === lvl.key ? lvl.bgColor : '#1a1a2e',
+                      background: currentLevel === lvl.key 
+                        ? `linear-gradient(135deg, ${lvl.bgColor} 0%, ${lvl.bgColor}dd 100%)`
+                        : 'linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%)',
                       border: `2px solid ${currentLevel === lvl.key ? lvl.borderColor : '#2a2a4e'}`,
+                      boxShadow: currentLevel === lvl.key ? `0 0 15px ${lvl.color}33` : 'none',
                     }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{lvl.icon}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-110 transition-transform">{lvl.icon}</span>
                       <div>
                         <div
-                          className="font-pixel text-[10px]"
+                          className="font-pixel text-[10px] mb-1"
                           style={{ color: currentLevel === lvl.key ? lvl.color : '#6a6a9e' }}
                         >
                           {lvl.label}
@@ -975,7 +1104,7 @@ function App() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex flex-col items-end gap-1">
                       <span
                         className="font-retro text-sm tracking-wider"
                         style={{ color: lvl.color }}
@@ -983,85 +1112,144 @@ function App() {
                         {renderStars(lvl.stars)}
                       </span>
                       <span className="font-retro text-[10px] text-[#567c45]">
-                        {lvl.speed}мс
+                        ⚡ {lvl.speed}мс
                       </span>
                     </div>
                   </button>
                 ))}
               </div>
 
+              {/* Start button */}
               <button
                 onClick={startGame}
-                className="retro-btn retro-btn-green text-xs"
+                className="retro-btn retro-btn-green text-xs px-8"
               >
-                ▶ СТАРТ
+                ▶ НАЧАТЬ ИГРУ
               </button>
 
-              <p className="font-retro text-[#567c45] text-sm mt-3">
-                Стрелки / WASD / Свайпы
-              </p>
-              <p className="font-retro text-[#306850] text-xs mt-1 animate-blink">
-                Нажмите ENTER чтобы начать
-              </p>
+              {/* Instructions */}
+              <div className="mt-6 space-y-2">
+                <div className="flex justify-center gap-4 text-xs">
+                  <span className="font-retro text-[#567c45]">⌨️ Стрелки</span>
+                  <span className="font-retro text-[#567c45]">⌨️ WASD</span>
+                  <span className="font-retro text-[#567c45]">👆 Свайпы</span>
+                </div>
+                <p className="font-retro text-[#306850] text-xs animate-blink">
+                  Нажмите ENTER или кликните для старта
+                </p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Paused overlay */}
         {gameState === 'paused' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/90 animate-pixel-fade">
-            <div className="text-center">
-              <div className="font-pixel text-[#d4a017] text-lg mb-4">⏸ ПАУЗА</div>
-              <div className="flex flex-col gap-3 items-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a]/95 via-[#1a1a2e]/95 to-[#0a0a1a]/95 animate-pixel-fade backdrop-blur-sm">
+            <div className="ui-panel-gold rounded-lg p-8 text-center max-w-sm">
+              {/* Pause icon */}
+              <div className="relative mb-6">
+                <div className="font-pixel text-5xl text-[#d4a017] animate-pulse">⏸</div>
+                <div className="absolute inset-0 blur-xl opacity-30 bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 rounded-full"></div>
+              </div>
+              
+              <h2 className="font-pixel text-[#ffd700] text-xl mb-2">ПАУЗА</h2>
+              <p className="font-retro text-[#d4a017] text-lg mb-6">Игра приостановлена</p>
+              
+              {/* Stats */}
+              <div className="flex justify-around mb-6 py-3 border-y border-[#d4a017]/30">
+                <div className="text-center">
+                  <div className="font-retro text-[#d4a017] text-xs mb-1">СЧЁТ</div>
+                  <div className="font-pixel text-[#ffd700] text-sm">{score}</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-retro text-[#d4a017] text-xs mb-1">УРОВЕНЬ</div>
+                  <div className="font-pixel text-[#ffd700] text-sm">{level.label}</div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-3">
                 <button
                   onClick={togglePause}
-                  className="retro-btn retro-btn-green text-[10px]"
+                  className="retro-btn retro-btn-green text-[10px] w-full"
                 >
                   ▶ ПРОДОЛЖИТЬ
                 </button>
                 <button
                   onClick={() => setGameState('menu')}
-                  className="retro-btn retro-btn-gray text-[10px]"
+                  className="retro-btn retro-btn-gray text-[10px] w-full"
                 >
-                  ↩ МЕНЮ
+                  ↩ В МЕНЮ
                 </button>
               </div>
+              
+              <p className="font-retro text-[#567c45] text-xs mt-4">
+                Нажмите P или Esc для продолжения
+              </p>
             </div>
           </div>
         )}
 
         {/* Game over overlay */}
         {gameState === 'gameover' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a1a]/95 animate-pixel-fade">
-            <div className="text-center">
-              <div className="font-pixel text-[#c03030] text-base mb-3">GAME OVER</div>
-              <div className="font-retro text-[#e0f8d0] text-xl mb-1">
-                СЧЁТ: <span className="text-[#86c06c]">{score}</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0a0a1a]/95 via-[#1a0a0a]/95 to-[#0a0a1a]/95 animate-pixel-fade backdrop-blur-sm">
+            <div className="ui-panel rounded-lg p-8 text-center max-w-sm border-[#c03030]">
+              {/* Game over icon */}
+              <div className="relative mb-6">
+                <div className="font-pixel text-5xl text-[#c03030] animate-pulse">💀</div>
+                <div className="absolute inset-0 blur-xl opacity-30 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 rounded-full"></div>
               </div>
-              <div className="font-retro text-[#567c45] text-sm">
-                Уровень: {level.label} ({gridSize}×{gridSize})
+              
+              <h2 className="font-pixel text-[#ff4444] text-xl mb-4">GAME OVER</h2>
+              
+              {/* Score display */}
+              <div className="mb-6">
+                <div className="font-retro text-[#86c06c] text-lg mb-2">ВАШ СЧЁТ</div>
+                <div className="font-pixel text-[#e0f8d0] text-3xl mb-3">{score}</div>
+                
+                {isNewRecord && (
+                  <div className="ui-panel-gold rounded-lg py-2 px-4 inline-block animate-bounce-retro">
+                    <div className="font-pixel text-[#ffd700] text-xs">🏆 НОВЫЙ РЕКОРД! 🏆</div>
+                  </div>
+                )}
               </div>
-              {isNewRecord && (
-                <div className="font-pixel text-[#d4a017] text-[10px] mt-2 animate-bounce-retro">
-                  ★ НОВЫЙ РЕКОРД! ★
+              
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-3 mb-6 py-3 border-y border-[#c03030]/30">
+                <div className="text-center">
+                  <div className="font-retro text-[#c03030] text-xs mb-1">УРОВЕНЬ</div>
+                  <div className="font-pixel text-[#e0f8d0] text-sm">{level.icon} {level.label}</div>
                 </div>
-              )}
-              <div className="flex flex-col gap-3 items-center mt-5">
+                <div className="text-center">
+                  <div className="font-retro text-[#c03030] text-xs mb-1">РАЗМЕР</div>
+                  <div className="font-pixel text-[#e0f8d0] text-sm">{gridSize}×{gridSize}</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-retro text-[#c03030] text-xs mb-1">СКОРОСТЬ</div>
+                  <div className="font-pixel text-[#e0f8d0] text-sm">{level.speed}мс</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-retro text-[#c03030] text-xs mb-1">РЕКОРД</div>
+                  <div className="font-pixel text-[#ffd700] text-sm">{highScore}</div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-3">
                 <button
                   onClick={startGame}
-                  className="retro-btn retro-btn-green text-[10px]"
+                  className="retro-btn retro-btn-green text-[10px] w-full"
                 >
-                  ↻ ЕЩЁ РАЗ
+                  ↻ ИГРАТЬ СНОВА
                 </button>
                 <button
                   onClick={() => setGameState('menu')}
-                  className="retro-btn retro-btn-gray text-[10px]"
+                  className="retro-btn retro-btn-gray text-[10px] w-full"
                 >
-                  ↩ МЕНЮ
+                  ↩ В МЕНЮ
                 </button>
               </div>
-              <p className="font-retro text-[#306850] text-xs mt-4 animate-blink">
-                Нажмите ENTER
+              
+              <p className="font-retro text-[#567c45] text-xs mt-4 animate-blink">
+                Нажмите ENTER для перезапуска
               </p>
             </div>
           </div>
@@ -1069,67 +1257,92 @@ function App() {
       </div>
 
       {/* Controls */}
-      <div className="w-full max-w-[500px] mt-3">
-        <div className="flex justify-center gap-2 mb-3">
+      <div className="w-full max-w-[500px] mt-4">
+        <div className="flex justify-center gap-3 mb-4">
           {gameState === 'playing' && (
             <button
               onClick={togglePause}
-              className="retro-btn retro-btn-gray text-[10px]"
+              className="ui-panel rounded-lg px-4 py-2 hover:border-[#86c06c] transition-all group"
             >
-              ⏸ ПАУЗА
+              <span className="font-retro text-sm text-[#86c06c] group-hover:text-[#e0f8d0] flex items-center gap-2">
+                <span className="text-lg">⏸</span>
+                <span>ПАУЗА</span>
+              </span>
             </button>
           )}
           {(gameState === 'playing' || gameState === 'paused') && (
             <button
               onClick={() => { initGame(); setGameState('menu'); }}
-              className="retro-btn retro-btn-red text-[10px]"
+              className="ui-panel rounded-lg px-4 py-2 hover:border-[#c03030] transition-all group"
             >
-              ↻ РЕСТАРТ
+              <span className="font-retro text-sm text-[#c03030] group-hover:text-[#ff4444] flex items-center gap-2">
+                <span className="text-lg">↻</span>
+                <span>РЕСТАРТ</span>
+              </span>
             </button>
           )}
         </div>
 
         {/* D-Pad for mobile */}
         <div className="flex flex-col items-center md:hidden">
-          <button
-            onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('UP'); }}
-            className="dpad-btn rounded-t-lg"
-          >
-            ▲
-          </button>
-          <div className="flex">
+          <div className="ui-panel rounded-t-xl p-2">
             <button
-              onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('LEFT'); }}
-              className="dpad-btn rounded-bl-lg"
+              onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('UP'); }}
+              className="dpad-btn rounded-lg w-16 h-16"
             >
-              ◀
-            </button>
-            <div className="w-[56px] h-[56px] bg-[#1a1a2e] border-t-[3px] border-b-[3px] border-[#4a4a6e]" />
-            <button
-              onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('RIGHT'); }}
-              className="dpad-btn rounded-br-lg"
-            >
-              ▶
+              <span className="text-2xl">▲</span>
             </button>
           </div>
-          <button
-            onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('DOWN'); }}
-            className="dpad-btn rounded-b-lg"
-          >
-            ▼
-          </button>
+          <div className="flex">
+            <div className="ui-panel rounded-l-xl p-2">
+              <button
+                onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('LEFT'); }}
+                className="dpad-btn rounded-lg w-16 h-16"
+              >
+                <span className="text-2xl">◀</span>
+              </button>
+            </div>
+            <div className="w-20 h-20 bg-gradient-to-br from-[#1a1a2e] to-[#0f0f1a] border-t-2 border-b-2 border-[#306850]/30 flex items-center justify-center">
+              <span className="font-retro text-[#306850] text-xs">🐍</span>
+            </div>
+            <div className="ui-panel rounded-r-xl p-2">
+              <button
+                onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('RIGHT'); }}
+                className="dpad-btn rounded-lg w-16 h-16"
+              >
+                <span className="text-2xl">▶</span>
+              </button>
+            </div>
+          </div>
+          <div className="ui-panel rounded-b-xl p-2">
+            <button
+              onTouchStart={(e) => { e.preventDefault(); handleDirectionButton('DOWN'); }}
+              className="dpad-btn rounded-lg w-16 h-16"
+            >
+              <span className="text-2xl">▼</span>
+            </button>
+          </div>
         </div>
 
-        <div className="hidden md:flex justify-center mt-1">
-          <p className="font-retro text-[#306850] text-sm">
-            ← ↑ ↓ → или W A S D • P/Esc — пауза
-          </p>
+        {/* Desktop hints */}
+        <div className="hidden md:flex justify-center mt-2">
+          <div className="ui-panel rounded-lg px-4 py-2">
+            <div className="flex items-center gap-4 font-retro text-xs">
+              <span className="text-[#86c06c]">⌨️</span>
+              <span className="text-[#567c45]">← ↑ ↓ → или W A S D</span>
+              <span className="text-[#306850]">•</span>
+              <span className="text-[#86c06c]">⏸</span>
+              <span className="text-[#567c45]">P или Esc</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 text-center">
-        <p className="font-retro text-[#1a3a1a] text-xs">
-          РЕТРО АРКАДА © 2025
+      {/* Footer */}
+      <div className="mt-4 text-center">
+        <div className="h-px w-32 mx-auto mb-2 bg-gradient-to-r from-transparent via-[#306850] to-transparent"></div>
+        <p className="font-retro text-[#306850] text-xs">
+          🐍 ЗМЕЙКА · РЕТРО АРКАДА · 2025
         </p>
       </div>
     </div>

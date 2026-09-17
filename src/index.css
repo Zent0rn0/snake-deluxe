@@ -6,6 +6,8 @@
   --retro-dark: #0f380f;
   --retro-bg: #9bbc0f;
   --retro-accent: #e0f8d0;
+  --retro-gold: #d4a017;
+  --retro-red: #c03030;
 }
 
 * {
@@ -16,7 +18,7 @@
 
 body {
   font-family: 'VT323', monospace;
-  background-color: #1a1a2e;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0a0a1a 100%);
   overflow: hidden;
 }
 
@@ -45,6 +47,23 @@ body {
   );
   pointer-events: none;
   z-index: 10;
+}
+
+/* Enhanced UI Panels */
+.ui-panel {
+  background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+  border: 2px solid #306850;
+  box-shadow: 
+    0 0 20px rgba(48, 104, 80, 0.3),
+    inset 0 1px 0 rgba(134, 192, 108, 0.1);
+}
+
+.ui-panel-gold {
+  background: linear-gradient(180deg, #2a2a1a 0%, #1a1a0f 100%);
+  border: 2px solid #d4a017;
+  box-shadow: 
+    0 0 20px rgba(212, 160, 23, 0.3),
+    inset 0 1px 0 rgba(255, 215, 0, 0.1);
 }
 
 /* Retro pixel border */
