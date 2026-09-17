@@ -289,17 +289,60 @@ function App() {
           case 'RIGHT': head.x += 1; break;
         }
 
-        // Wrap around walls (no death)
-        if (head.x < 0) head.x = gridSize - 1;
-        else if (head.x >= gridSize) head.x = 0;
-        if (head.y < 0) head.y = gridSize - 1;
-        else if (head.y >= gridSize) head.y = 0;
+        // Check if wrapping around walls
+        let wrapped = false;
+        if (head.x < 0) {
+          head.x = gridSize - 1;
+          wrapped = true;
+        } else if (head.x >= gridSize) {
+          head.x = 0;
+          wrapped = true;
+        }
+        if (head.y < 0) {
+          head.y = gridSize - 1;
+          wrapped = true;
+        } else if (head.y >= gridSize) {
+          head.y = 0;
+          wrapped = true;
+        }
       
-      // Self collision check (exclude tail since it will move)
-      const bodyToCheck = prevSnake.slice(0, -1);
-      if (bodyToCheck.some(segment => segment.x === head.x && segment.y === head.y)) {
-        gameOver();
-        return;
+      // Self collision check - skip if just wrapped through wall
+      if (!wrapped) {
+        const bodyToCheck = prevSnake.slice(0, -1);
+        if (bodyToCheck.some(segment => segment.x === head.x && segment.y === head.y)) {
+          gameOver();
+          return;
+        }
+      } else {
+        // Visual and audio feedback for wall wrap
+        retroSounds.playTurn();
+        shakeRef.current.trigger(2);
+        
+        // Emit particles at wall wrap position
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const borderW = 6;
+          const gameArea = canvas.width - borderW * 2;
+          const cellSize = gameArea / gridSize;
+          
+          // Emit particles at the wall where snake exited
+          let wrapX = head.x * cellSize + cellSize / 2;
+          let wrapY = head.y * cellSize + cellSize / 2;
+          
+          // Adjust to show at the wall edge
+          if (prevSnake[0].x === 0 && head.x === gridSize - 1) {
+            wrapX = -cellSize / 2; // Left wall
+          } else if (prevSnake[0].x === gridSize - 1 && head.x === 0) {
+            wrapX = gameArea + cellSize / 2; // Right wall
+          }
+          if (prevSnake[0].y === 0 && head.y === gridSize - 1) {
+            wrapY = -cellSize / 2; // Top wall
+          } else if (prevSnake[0].y === gridSize - 1 && head.y === 0) {
+            wrapY = gameArea + cellSize / 2; // Bottom wall
+          }
+          
+          particlesRef.current.emit(borderW + wrapX, borderW + wrapY, 'spark', 8);
+        }
       }
 
       const newSnake = [head, ...prevSnake];
