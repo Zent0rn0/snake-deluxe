@@ -26,102 +26,116 @@ export const PALETTE = {
   black: '#0f0f0f',
 };
 
-// Snake head facing RIGHT (10x10)
+// Snake head facing RIGHT (12x12) - more detailed
 export const SNAKE_HEAD_RIGHT: Sprite = [
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', ''],
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'md', 'md', 'md', 'md', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
 ];
 
-// Snake head facing LEFT (10x10)
+// Snake head facing LEFT (12x12) - more detailed
 export const SNAKE_HEAD_LEFT: Sprite = [
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', ''],
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'bk', 'wh', 'lt', 'lt', 'bk', 'wh', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'md', 'md', 'md', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
 ];
 
-// Snake head facing UP (10x10)
+// Snake head facing UP (12x12) - more detailed
 export const SNAKE_HEAD_UP: Sprite = [
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', ''],
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'md', 'md', 'md', 'md', 'md', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
 ];
 
-// Snake head facing DOWN (10x10)
+// Snake head facing DOWN (12x12) - more detailed
 export const SNAKE_HEAD_DOWN: Sprite = [
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
-  ['', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'lt', 'lt', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'bk', 'lt', 'lt', 'bk', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'wh', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'bk', 'bk', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'md', 'md', 'md', 'md', 'md', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'md', 'md', 'md', 'md', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
 ];
 
-// Snake body segment (10x10)
+// Snake body segment (12x12) - more detailed with scales
 export const SNAKE_BODY: Sprite = [
-  ['', '', 'dk', 'dk', 'dk', 'dk', 'dk', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'md', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', 'dk'],
-  ['dk', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'md', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'dk', 'dk', 'dk', 'dk', 'dk', '', ''],
+  ['', '', '', 'dk', 'dk', 'dk', 'dk', 'dk', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'md', 'lt', 'lt', 'md', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'md', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'md', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'md', 'md', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'md', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'md', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'md', 'lt', 'lt', 'md', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'dk', 'dk', 'dk', 'dk', 'dk', '', '', ''],
 ];
 
-// Snake tail (10x10)
+// Snake tail (12x12) - more detailed with taper
 export const SNAKE_TAIL: Sprite = [
-  ['', '', '', '', 'dk', 'dk', '', '', '', ''],
-  ['', '', '', 'dk', 'lt', 'lt', 'dk', '', '', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
-  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
-  ['', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', ''],
-  ['', '', '', 'dk', 'dk', 'dk', 'dk', '', '', ''],
-  ['', '', '', '', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', '', '', 'dk', 'dk', '', '', '', '', ''],
+  ['', '', '', '', 'dk', 'lt', 'lt', 'dk', '', '', '', ''],
+  ['', '', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', '', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk'],
+  ['', 'dk', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'lt', 'dk', ''],
+  ['', '', 'dk', 'lt', 'lt', 'md', 'lt', 'lt', 'lt', 'dk', '', ''],
+  ['', '', '', 'dk', 'lt', 'lt', 'lt', 'lt', 'dk', '', '', ''],
+  ['', '', '', '', 'dk', 'dk', 'dk', 'dk', '', '', '', ''],
+  ['', '', '', '', '', 'dk', 'dk', '', '', '', '', ''],
 ];
 
-// Apple/Food (10x10)
+// Apple/Food (12x12) - more detailed
 export const FOOD_APPLE: Sprite = [
-  ['', '', '', '', 'lf', 'bl', '', '', '', ''],
-  ['', '', '', 'lf', 'bl', '', '', '', '', ''],
-  ['', '', 'dr', 'dr', 'br', 'br', 'dr', '', '', ''],
-  ['', 'dr', 'br', 'br', 'br', 'br', 'br', 'dr', '', ''],
-  ['dr', 'br', 'br', 'wh', 'br', 'br', 'br', 'br', 'dr', ''],
-  ['dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
-  ['dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
-  ['', 'dr', 'br', 'br', 'br', 'br', 'br', 'dr', '', ''],
-  ['', '', 'dr', 'dr', 'dr', 'dr', 'dr', '', '', ''],
-  ['', '', '', '', '', '', '', '', '', ''],
+  ['', '', '', '', '', 'lf', 'bl', '', '', '', '', ''],
+  ['', '', '', '', 'lf', 'bl', '', '', '', '', '', ''],
+  ['', '', '', 'lf', 'bl', '', '', '', '', '', '', ''],
+  ['', '', 'dr', 'dr', 'dr', 'br', 'br', 'dr', '', '', '', ''],
+  ['', 'dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', '', ''],
+  ['dr', 'br', 'br', 'wh', 'wh', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
+  ['dr', 'br', 'br', 'wh', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
+  ['dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
+  ['dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', ''],
+  ['', 'dr', 'br', 'br', 'br', 'br', 'br', 'br', 'br', 'dr', '', ''],
+  ['', '', 'dr', 'dr', 'dr', 'dr', 'dr', 'dr', 'dr', '', '', ''],
+  ['', '', '', '', '', '', '', '', '', '', '', ''],
 ];
 
 // Color mapping for sprites
