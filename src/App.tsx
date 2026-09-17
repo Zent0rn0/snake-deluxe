@@ -483,10 +483,10 @@ function App() {
 
       // Food with glow and animation
       const food = foodRef.current;
-      const foodPixelSize = Math.max(1, Math.floor(cellSize / 10));
+      const foodPixelSize = Math.max(1, Math.floor(cellSize / 12));
       const foodPulse = Math.sin(foodAnimRef.current * 3) * 0.15 + 1;
-      const foodX = food.x * cellSize + (cellSize - foodPixelSize * 10) / 2;
-      const foodY = food.y * cellSize + (cellSize - foodPixelSize * 10) / 2;
+      const foodX = food.x * cellSize + (cellSize - foodPixelSize * 12) / 2;
+      const foodY = food.y * cellSize + (cellSize - foodPixelSize * 12) / 2;
 
       // Food glow
       ctx.save();
@@ -496,7 +496,7 @@ function App() {
       ctx.restore();
 
       // Snake with smooth interpolation
-      const spritePixelSize = Math.max(1, Math.floor(cellSize / 10));
+      const spritePixelSize = Math.max(1, Math.floor(cellSize / 16));
       const interpSnake = interpolatedSnakeRef.current;
       const timeSinceTick = timestamp - lastTickTimeRef.current;
       const t = Math.min(1, timeSinceTick / level.speed);
@@ -539,21 +539,10 @@ function App() {
 
       const headSquash = squashStretchRef.current;
 
-      for (let i = interpSnake.length - 1; i >= 0; i--) {
-        const seg = interpSnake[i];
-        let interpX = lerp(seg.prevX, seg.x, smoothT);
-        let interpY = lerp(seg.prevY, seg.y, smoothT);
-        
-        // Wrap interpolated coordinates
-        if (interpX < 0) interpX += gridSize;
-        else if (interpX >= gridSize) interpX -= gridSize;
-        if (interpY < 0) interpY += gridSize;
-        else if (interpY >= gridSize) interpY -= gridSize;
-        
-        let drawX = interpX * cellSize;
-        let drawY = interpY * cellSize;
-        const offsetX = (cellSize - spritePixelSize * 10) / 2;
-        const offsetY = (cellSize - spritePixelSize * 10) / 2;
+      // Function to draw a snake segment at given coordinates
+      const drawSegment = (i: number, drawX: number, drawY: number) => {
+        const offsetX = (cellSize - spritePixelSize * 16) / 2;
+        const offsetY = (cellSize - spritePixelSize * 16) / 2;
 
         if (i === 0) {
           // Head with squash & stretch
@@ -579,6 +568,57 @@ function App() {
         } else {
           // Body
           drawSprite(ctx, SNAKE_BODY, drawX + offsetX, drawY + offsetY, spritePixelSize);
+        }
+      };
+
+      for (let i = interpSnake.length - 1; i >= 0; i--) {
+        const seg = interpSnake[i];
+        let interpX = lerp(seg.prevX, seg.x, smoothT);
+        let interpY = lerp(seg.prevY, seg.y, smoothT);
+        
+        // Check if this segment is wrapping around
+        const isWrappingX = Math.abs(seg.x - seg.prevX) > 1;
+        const isWrappingY = Math.abs(seg.y - seg.prevY) > 1;
+        
+        if (isWrappingX || isWrappingY) {
+          // Draw segment on both sides during wrap
+          // First position (wrapped)
+          let wrappedX = interpX;
+          let wrappedY = interpY;
+          if (wrappedX < 0) wrappedX += gridSize;
+          else if (wrappedX >= gridSize) wrappedX -= gridSize;
+          if (wrappedY < 0) wrappedY += gridSize;
+          else if (wrappedY >= gridSize) wrappedY -= gridSize;
+          
+          drawSegment(i, wrappedX * cellSize, wrappedY * cellSize);
+          
+          // Second position (original, for smooth transition)
+          let origX = interpX;
+          let origY = interpY;
+          if (isWrappingX) {
+            if (seg.x > seg.prevX) {
+              origX = interpX - gridSize;
+            } else {
+              origX = interpX + gridSize;
+            }
+          }
+          if (isWrappingY) {
+            if (seg.y > seg.prevY) {
+              origY = interpY - gridSize;
+            } else {
+              origY = interpY + gridSize;
+            }
+          }
+          
+          // Only draw if in visible area
+          if (origX >= -1 && origX < gridSize && origY >= -1 && origY < gridSize) {
+            drawSegment(i, origX * cellSize, origY * cellSize);
+          }
+        } else {
+          // Normal rendering without wrap
+          let drawX = interpX * cellSize;
+          let drawY = interpY * cellSize;
+          drawSegment(i, drawX, drawY);
         }
       }
       ctx.restore();
