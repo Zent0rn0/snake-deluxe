@@ -88,22 +88,35 @@ export class ParticleSystem {
 // Screen shake effect
 export class ScreenShake {
   intensity = 0;
-  decay = 0.85;
+  decay = 0.9;
   offsetX = 0;
   offsetY = 0;
+  targetX = 0;
+  targetY = 0;
 
-  trigger(intensity: number = 8) {
+  trigger(intensity: number = 5) {
     this.intensity = intensity;
+    this.targetX = (Math.random() - 0.5) * intensity;
+    this.targetY = (Math.random() - 0.5) * intensity;
   }
 
   update() {
     if (this.intensity > 0.1) {
-      this.offsetX = (Math.random() - 0.5) * this.intensity * 2.5;
-      this.offsetY = (Math.random() - 0.5) * this.intensity * 2.5;
+      // Smooth interpolation
+      this.offsetX += (this.targetX - this.offsetX) * 0.3;
+      this.offsetY += (this.targetY - this.offsetY) * 0.3;
       this.intensity *= this.decay;
+      
+      // Update target with smooth random movement
+      if (Math.random() < 0.2) {
+        this.targetX = (Math.random() - 0.5) * this.intensity * 2;
+        this.targetY = (Math.random() - 0.5) * this.intensity * 2;
+      }
     } else {
-      this.offsetX = 0;
-      this.offsetY = 0;
+      this.offsetX *= 0.8;
+      this.offsetY *= 0.8;
+      if (Math.abs(this.offsetX) < 0.1) this.offsetX = 0;
+      if (Math.abs(this.offsetY) < 0.1) this.offsetY = 0;
       this.intensity = 0;
     }
   }
@@ -152,4 +165,14 @@ export function lerp(a: number, b: number, t: number): number {
 // Smooth step for easing
 export function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
+}
+
+// Cubic ease out for smoother animations
+export function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Quintic ease out for very smooth animations
+export function easeOutQuint(t: number): number {
+  return 1 - Math.pow(1 - t, 5);
 }
