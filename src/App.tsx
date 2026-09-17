@@ -282,18 +282,18 @@ function App() {
       const currentDir = directionRef.current;
       lastDirectionRef.current = currentDir;
 
-      switch (currentDir) {
-        case 'UP': head.y -= 1; break;
-        case 'DOWN': head.y += 1; break;
-        case 'LEFT': head.x -= 1; break;
-        case 'RIGHT': head.x += 1; break;
-      }
+        switch (currentDir) {
+          case 'UP': head.y -= 1; break;
+          case 'DOWN': head.y += 1; break;
+          case 'LEFT': head.x -= 1; break;
+          case 'RIGHT': head.x += 1; break;
+        }
 
-      if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
-        gameOver();
-        return;
-      }
-
+        // Wrap around walls (no death)
+        if (head.x < 0) head.x = gridSize - 1;
+        else if (head.x >= gridSize) head.x = 0;
+        if (head.y < 0) head.y = gridSize - 1;
+        else if (head.y >= gridSize) head.y = 0;
       if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
         gameOver();
         return;
@@ -334,14 +334,27 @@ function App() {
       snakeRef.current = newSnake;
       lastTickTimeRef.current = performance.now();
 
-      // Update interpolated snake - set prev to old position, current to new
+      // Update interpolated snake - handle wrap-around for smooth animation
       interpolatedSnakeRef.current = newSnake.map((s, i) => {
         const prev = prevSnake[i] || prevSnake[prevSnake.length - 1];
+        
+        // Adjust prev position for wrap-around
+        let prevX = prev.x;
+        let prevY = prev.y;
+        
+        // Check if wrapped around
+        if (Math.abs(s.x - prev.x) > gridSize / 2) {
+          prevX = s.x > prev.x ? prev.x + gridSize : prev.x - gridSize;
+        }
+        if (Math.abs(s.y - prev.y) > gridSize / 2) {
+          prevY = s.y > prev.y ? prev.y + gridSize : prev.y - gridSize;
+        }
+        
         return {
           x: s.x,
           y: s.y,
-          prevX: prev.x,
-          prevY: prev.y,
+          prevX,
+          prevY,
         };
       });
     }, speed);
@@ -443,15 +456,33 @@ function App() {
       const t = Math.min(1, timeSinceTick / level.speed);
       const smoothT = smoothstep(t);
 
-      // Emit particles only on turns and eating (no constant trail)
+      // Emit particles on turns, eating, and wall wrapping
       if (gameStateRef.current === 'playing' && interpSnake.length > 0) {
         const headSeg = interpSnake[0];
-        const hx = (lerp(headSeg.prevX, headSeg.x, smoothT) + 0.5) * cellSize;
-        const hy = (lerp(headSeg.prevY, headSeg.y, smoothT) + 0.5) * cellSize;
+        let hx = lerp(headSeg.prevX, headSeg.x, smoothT);
+        let hy = lerp(headSeg.prevY, headSeg.y, smoothT);
+        
+        // Wrap coordinates
+        if (hx < 0) hx += gridSize;
+        else if (hx >= gridSize) hx -= gridSize;
+        if (hy < 0) hy += gridSize;
+        else if (hy >= gridSize) hy -= gridSize;
+        
+        hx = (hx + 0.5) * cellSize;
+        hy = (hy + 0.5) * cellSize;
 
-        // Sparks only on sharp turns
+        // Sparks on sharp turns
         if (turnSnapRef.current > 0.5 && Math.random() < 0.4) {
           particlesRef.current.emit(hx, hy, 'spark', 2);
+        }
+        
+        // Particles when wrapping around walls
+        const actualHead = snakeRef.current[0];
+        if (actualHead && (actualHead.x === 0 || actualHead.x === gridSize - 1 || 
+            actualHead.y === 0 || actualHead.y === gridSize - 1)) {
+          if (Math.random() < 0.3) {
+            particlesRef.current.emit(hx, hy, 'spark', 1);
+          }
         }
       }
 
@@ -464,8 +495,17 @@ function App() {
 
       for (let i = interpSnake.length - 1; i >= 0; i--) {
         const seg = interpSnake[i];
-        let drawX = lerp(seg.prevX, seg.x, smoothT) * cellSize;
-        let drawY = lerp(seg.prevY, seg.y, smoothT) * cellSize;
+        let interpX = lerp(seg.prevX, seg.x, smoothT);
+        let interpY = lerp(seg.prevY, seg.y, smoothT);
+        
+        // Wrap interpolated coordinates
+        if (interpX < 0) interpX += gridSize;
+        else if (interpX >= gridSize) interpX -= gridSize;
+        if (interpY < 0) interpY += gridSize;
+        else if (interpY >= gridSize) interpY -= gridSize;
+        
+        let drawX = interpX * cellSize;
+        let drawY = interpY * cellSize;
         const offsetX = (cellSize - spritePixelSize * 10) / 2;
         const offsetY = (cellSize - spritePixelSize * 10) / 2;
 
