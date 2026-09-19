@@ -4,9 +4,22 @@ import type { LevelDef } from './levels';
 import { starsFor } from './levels';
 import { decideBotMove } from './ai';
 import {
-  DX, DY, opposite,
-  type Controller, type Dir, type GameEvent, type Item, type ItemKind, type ModeId, type MutatorId,
-  type Phase, type Portal, type PowerId, type RunResult, type Snake, type Vec,
+  DX,
+  DY,
+  opposite,
+  type Controller,
+  type Dir,
+  type GameEvent,
+  type Item,
+  type ItemKind,
+  type ModeId,
+  type MutatorId,
+  type Phase,
+  type Portal,
+  type PowerId,
+  type RunResult,
+  type Snake,
+  type Vec,
 } from './types';
 
 export interface GameConfig {
@@ -31,7 +44,20 @@ export interface GameConfig {
   p2Skin?: string;
   goalScore?: number;
   countdown?: boolean;
+  /**
+   * Commit a queued turn immediately when the snake is early in its cell,
+   * repaying the borrowed time on the following step. On by default; the demo
+   * background and the unit tests pin it explicitly.
+   */
+  earlyTurn?: boolean;
 }
+
+/**
+ * A turn issued in the first 45% of a cell traversal is committed on the spot.
+ * Later than that and the snake is close enough to the boundary that the wait
+ * is imperceptible anyway.
+ */
+export const EARLY_TURN_FRAC = 0.45;
 
 export const CELL_EMPTY = 0;
 export const CELL_ROCK = 1;
@@ -122,12 +148,24 @@ export class Engine {
           const right: Dir = cfg.transpose ? 2 : 1;
           const left: Dir = cfg.transpose ? 0 : 3;
           switch (ch) {
-            case '#': this.cells[i] = CELL_ROCK; break;
-            case 'L': this.cells[i] = CELL_LOCK; break;
-            case 'S': this.startCells.push({ pos: { x, y }, dir: right, kind: 'player' }); break;
-            case 'X': this.startCells.push({ pos: { x, y }, dir: left, kind: 'rival' }); break;
-            case 'K': this.addItem('key', x, y, 'key', 0); break;
-            case 'G': this.addItem('coin', x, y, 'coin', 5); break;
+            case '#':
+              this.cells[i] = CELL_ROCK;
+              break;
+            case 'L':
+              this.cells[i] = CELL_LOCK;
+              break;
+            case 'S':
+              this.startCells.push({ pos: { x, y }, dir: right, kind: 'player' });
+              break;
+            case 'X':
+              this.startCells.push({ pos: { x, y }, dir: left, kind: 'rival' });
+              break;
+            case 'K':
+              this.addItem('key', x, y, 'key', 0);
+              break;
+            case 'G':
+              this.addItem('coin', x, y, 'coin', 5);
+              break;
             default:
               if (/[ABC]/i.test(ch)) {
                 const key = ch.toUpperCase();
@@ -138,10 +176,12 @@ export class Engine {
           }
         }
       }
-      Object.keys(pairs).sort().forEach((k, idx) => {
-        const p = pairs[k];
-        if (p.a && p.b) this.portals.push({ a: p.a, b: p.b, color: PORTAL_COLORS[idx % PORTAL_COLORS.length] });
-      });
+      Object.keys(pairs)
+        .sort()
+        .forEach((k, idx) => {
+          const p = pairs[k];
+          if (p.a && p.b) this.portals.push({ a: p.a, b: p.b, color: PORTAL_COLORS[idx % PORTAL_COLORS.length] });
+        });
     }
   }
 
@@ -177,7 +217,9 @@ export class Engine {
       this.snakes.push(this.makeSnake('p2', 'Игрок 2', pos(W - 4, mid(H) + 2), L, 4, cfg.p2Skin ?? 'sunset', 'none'));
     } else {
       if (cfg.mode !== 'demo') {
-        this.snakes.push(this.makeSnake('p1', 'Ты', pos(Math.max(3, Math.floor(W / 4)), mid(H)), R, cfg.mode === 'arena' ? 5 : 3, cfg.skin, cfg.hat));
+        this.snakes.push(
+          this.makeSnake('p1', 'Ты', pos(Math.max(3, Math.floor(W / 4)), mid(H)), R, cfg.mode === 'arena' ? 5 : 3, cfg.skin, cfg.hat),
+        );
       }
       const bots = cfg.bots?.count ?? 0;
       const botSkins = this.rng.shuffle(SKINS.filter((s) => s.id !== cfg.skin).map((s) => s.id));
@@ -185,7 +227,15 @@ export class Engine {
       const names = this.rng.shuffle([...BOT_NAMES]);
       for (let b = 0; b < bots; b++) {
         const spot = this.botSpawnSpot(b);
-        const s = this.makeSnake('bot', names[b % names.length], spot.pos, spot.dir, 5, botSkins[b % botSkins.length], botHats[b % botHats.length]);
+        const s = this.makeSnake(
+          'bot',
+          names[b % names.length],
+          spot.pos,
+          spot.dir,
+          5,
+          botSkins[b % botSkins.length],
+          botHats[b % botHats.length],
+        );
         s.botLevel = cfg.bots!.level;
         this.snakes.push(s);
       }
@@ -219,10 +269,40 @@ export class Engine {
       });
     }
     return {
-      id: this.snakes.length, name, controller, body, prevBody: body.slice(), dir, queue: [], alive: true, skin, hat,
-      grow: 0, score: 0, fruits: 0, kills: 0, effects: {}, shield: false, reversed: 0, moveAcc: 0,
-      stepMs: this.cfg.level?.stepMs ?? this.cfg.stepMs, boosting: false, boostSteps: 0, gulps: [], combo: 0, comboTimer: 0,
-      maxCombo: 0, deadTime: 0, respawnIn: 0, invuln: 0, botLevel: 1, teleported: false, wrapped: false,
+      id: this.snakes.length,
+      name,
+      controller,
+      body,
+      prevBody: body.slice(),
+      dir,
+      queue: [],
+      alive: true,
+      skin,
+      hat,
+      stepDebt: 0,
+      nextDebt: 0,
+      earlyTurned: false,
+      grow: 0,
+      score: 0,
+      fruits: 0,
+      kills: 0,
+      effects: {},
+      shield: false,
+      reversed: 0,
+      moveAcc: 0,
+      stepMs: this.cfg.level?.stepMs ?? this.cfg.stepMs,
+      boosting: false,
+      boostSteps: 0,
+      gulps: [],
+      combo: 0,
+      comboTimer: 0,
+      maxCombo: 0,
+      deadTime: 0,
+      respawnIn: 0,
+      invuln: 0,
+      botLevel: 1,
+      teleported: false,
+      wrapped: false,
     };
   }
 
@@ -239,14 +319,52 @@ export class Engine {
     return this.snakes.find((s) => s.controller === 'p1');
   }
 
-  input(controller: Controller, dir: Dir) {
-    if (this.phase !== 'playing' && this.phase !== 'countdown') return;
+  /** Queues a turn. Returns whether it was accepted, so callers can be honest
+   *  about haptics and turn sounds instead of buzzing on rejected reversals. */
+  input(controller: Controller, dir: Dir): boolean {
+    if (this.phase !== 'playing' && this.phase !== 'countdown') return false;
     const s = this.snakes.find((sn) => sn.controller === controller);
-    if (!s || !s.alive) return;
+    if (!s || !s.alive) return false;
     if (s.reversed > 0) dir = opposite(dir);
     const last = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
-    if (dir === last || dir === opposite(last)) return;
-    if (s.queue.length < 3) s.queue.push(dir);
+    if (dir === last || dir === opposite(last)) return false;
+    if (s.queue.length >= 3) return false;
+    s.queue.push(dir);
+    return true;
+  }
+
+  /** Turn relative to where the snake is already heading: -1 left, +1 right. */
+  inputRelative(controller: Controller, delta: -1 | 1): boolean {
+    const s = this.snakes.find((sn) => sn.controller === controller);
+    if (!s) return false;
+    const from = s.queue.length ? s.queue[s.queue.length - 1] : s.dir;
+    // `input` re-applies the reversed-controls flip, so undo it here to keep
+    // "left" meaning the player's left in both cases.
+    const turned = (((from + delta) % 4) + 4) % 4;
+    const dir = (s.reversed > 0 ? opposite(turned as Dir) : turned) as Dir;
+    return this.input(controller, dir);
+  }
+
+  /**
+   * Commits a queued turn straight away when the snake has only just entered
+   * its cell, and books the borrowed time as debt against the next step. The
+   * turn lands on the next frame instead of up to a full step later, while
+   * average speed is unchanged — the following step waits exactly as long as
+   * this one was cut short, so the snake never ends up more than one partial
+   * cell ahead of where it would otherwise be.
+   */
+  private tryEarlyTurn(s: Snake) {
+    if (this.cfg.earlyTurn === false || s.controller === 'bot') return;
+    // Only when nothing is owed. Borrowing again before the previous debt is
+    // repaid would let a zig-zag compound into free speed.
+    if (s.stepDebt > 0 || s.earlyTurned || !s.queue.length) return;
+    const d = s.queue[0];
+    if (d === s.dir || d === opposite(s.dir)) return;
+    const step = this.effectiveStep(s);
+    if (s.moveAcc >= step * EARLY_TURN_FRAC) return;
+    s.nextDebt = step - s.moveAcc;
+    s.moveAcc = step;
+    s.earlyTurned = true;
   }
 
   setBoost(controller: Controller, on: boolean) {
@@ -305,7 +423,9 @@ export class Engine {
     if (s.boosting) ms *= 0.6;
     if (s.effects.freeze) ms *= 1.45;
     if (this.snakes.some((o) => o !== s && o.alive && o.effects.freeze)) ms *= 1.6;
-    return ms;
+    // The debt is part of the step, so the renderer's moveAcc/step interpolation
+    // stretches with it instead of racing ahead and then stalling.
+    return ms + s.stepDebt;
   }
 
   // ─── Update ─────────────────────────────────────────────────────────────
@@ -372,11 +492,16 @@ export class Engine {
     for (const s of this.snakes) {
       if (!s.alive) continue;
       s.moveAcc += dt;
-      const step = this.effectiveStep(s);
+      this.tryEarlyTurn(s);
       let guard = 0;
-      while (s.alive && s.moveAcc >= step && guard++ < 3) {
+      while (s.alive && guard++ < 3) {
+        const step = this.effectiveStep(s);
+        if (s.moveAcc < step) break;
         s.moveAcc -= step;
         this.stepSnake(s);
+        s.stepDebt = s.nextDebt;
+        s.nextDebt = 0;
+        s.earlyTurned = false;
         if (this.phase !== 'playing') break;
       }
       if (this.phase !== 'playing') break;
@@ -655,7 +780,8 @@ export class Engine {
       if (s.boostSteps % 5 === 0 && s.body.length > 5) {
         const tail = s.body.pop()!;
         s.prevBody.pop();
-        if (!this.itemAt(tail.x, tail.y) && this.rng.chance(0.7)) this.addItem('orb', tail.x, tail.y, '', 5, 14000, undefined, this.snakeColor(s));
+        if (!this.itemAt(tail.x, tail.y) && this.rng.chance(0.7))
+          this.addItem('orb', tail.x, tail.y, '', 5, 14000, undefined, this.snakeColor(s));
         this.events.push({ type: 'boostDrop', snake: s.id });
       }
     }
@@ -752,9 +878,19 @@ export class Engine {
     }
 
     s.score = Math.max(0, s.score + points);
-    this.events.push({ type: 'eat', snake: s.id, x: head.x, y: head.y, points, combo: s.combo, kind: item.kind, sprite: item.sprite, power: item.power });
+    this.events.push({
+      type: 'eat',
+      snake: s.id,
+      x: head.x,
+      y: head.y,
+      points,
+      combo: s.combo,
+      kind: item.kind,
+      sprite: item.sprite,
+      power: item.power,
+    });
 
-    if (this.cfg.level && (item.kind === 'fruit')) {
+    if (this.cfg.level && item.kind === 'fruit') {
       if (s.id === this.rivalId && s.fruits >= this.goal) {
         this.endWithDeath(false, 'rival');
       } else if (s.controller === 'p1' && s.fruits >= this.goal) {
@@ -770,7 +906,9 @@ export class Engine {
       const c = this.randomFreeCell(4);
       if (!c) return;
       // Keep the cell right in front of every head free.
-      const ahead = this.snakes.some((o) => o.alive && Math.abs(o.body[0].x + DX[o.dir] * 2 - c.x) + Math.abs(o.body[0].y + DY[o.dir] * 2 - c.y) < 3);
+      const ahead = this.snakes.some(
+        (o) => o.alive && Math.abs(o.body[0].x + DX[o.dir] * 2 - c.x) + Math.abs(o.body[0].y + DY[o.dir] * 2 - c.y) < 3,
+      );
       if (ahead) continue;
       const before = this.computeReachable();
       this.cells[this.idx(c.x, c.y)] = CELL_ROCK;
@@ -804,6 +942,9 @@ export class Engine {
     s.alive = false;
     s.deadTime = this.time;
     s.queue.length = 0;
+    s.stepDebt = 0;
+    s.nextDebt = 0;
+    s.earlyTurned = false;
     const head = s.body[0];
     this.events.push({ type: 'die', snake: s.id, x: head.x, y: head.y, by, reason });
     if (by !== undefined && by !== s.id && this.snakes[by]) {
@@ -858,8 +999,14 @@ export class Engine {
       for (let i = 0; i < len + 3; i++) {
         const x = c.x - DX[dir] * (i - 3);
         const y = c.y - DY[dir] * (i - 3);
-        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows || this.cells[this.idx(x, y)] !== CELL_EMPTY || this.portalAt(x, y)) { ok = false; break; }
-        if (this.snakes.some((o) => o.alive && o.body.some((b) => b.x === x && b.y === y))) { ok = false; break; }
+        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows || this.cells[this.idx(x, y)] !== CELL_EMPTY || this.portalAt(x, y)) {
+          ok = false;
+          break;
+        }
+        if (this.snakes.some((o) => o.alive && o.body.some((b) => b.x === x && b.y === y))) {
+          ok = false;
+          break;
+        }
         if (i >= 3) cells.push({ x, y });
       }
       if (!ok) continue;
@@ -934,9 +1081,8 @@ export class Engine {
     if (this.cfg.mode === 'daily' && this.cfg.goalScore) finalWin = p.score >= this.cfg.goalScore;
     if (this.cfg.mode === 'arena') finalWin = reason === 'time' && this.arenaRank() === 1;
 
-    const duelWinner = this.cfg.mode === 'duel'
-      ? (this.duelWins[0] === this.duelWins[1] ? null : this.duelWins[0] > this.duelWins[1] ? 0 : 1)
-      : undefined;
+    const duelWinner =
+      this.cfg.mode === 'duel' ? (this.duelWins[0] === this.duelWins[1] ? null : this.duelWins[0] > this.duelWins[1] ? 0 : 1) : undefined;
 
     this.result = {
       mode: this.cfg.mode,
@@ -957,7 +1103,7 @@ export class Engine {
       levelId: level?.id,
       mutators: [...this.mutators],
       duelWinner,
-      duelScore: this.cfg.mode === 'duel' ? [...this.duelWins] as [number, number] : undefined,
+      duelScore: this.cfg.mode === 'duel' ? ([...this.duelWins] as [number, number]) : undefined,
       reason,
     };
     if (win) this.events.push({ type: 'win' });

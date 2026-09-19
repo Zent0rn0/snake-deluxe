@@ -5,7 +5,7 @@ import { audio } from '../audio/audio';
 import { emojiUrl } from '../game/assets';
 import { SPIN_PRICE, WHEEL, canSpinFree, claimQuest, questDef, spinWheel, useProfile, type WheelPrize } from '../store/profile';
 import { Button, Emoji, Modal, ProgressBar, Screen, TopBar } from '../ui/kit';
-import { toastAchievements } from '../ui/toasts';
+import { toastAchievements } from '../ui/toastStore';
 
 const SEG = 360 / WHEEL.length;
 
@@ -17,7 +17,7 @@ function polar(r: number, deg: number) {
 function Wheel({ rotation }: { rotation: number }) {
   return (
     <div className="relative w-[300px] h-[300px] mx-auto">
-      <div className="absolute inset-[-10px] rounded-full bg-gradient-to-b from-amber-300 to-orange-600 shadow-[0_20px_50px_-10px_rgba(0,0,0,.7)]" />
+      <div className="absolute inset-[-10px] rounded-full bg-gradient-to-b from-reward to-reward-deep shadow-e4" />
       <div className="absolute inset-[-4px] rounded-full bg-ink-900" />
       <motion.svg
         viewBox="0 0 300 300"
@@ -37,8 +37,20 @@ function Wheel({ rotation }: { rotation: number }) {
               <g transform={`rotate(${i * SEG + SEG / 2} ${tx} ${ty})`}>
                 <image href={emojiUrl(w.sprite)} x={tx - 18} y={ty - 20} width="36" height="36" />
               </g>
-              <text x={lx} y={ly} transform={`rotate(${i * SEG + SEG / 2} ${lx} ${ly})`} textAnchor="middle" dominantBaseline="middle"
-                fontFamily="Unbounded, sans-serif" fontWeight="800" fontSize={w.label.length > 3 ? 12 : 15} fill="white" stroke="rgba(0,0,0,.35)" strokeWidth="3" paintOrder="stroke">
+              <text
+                x={lx}
+                y={ly}
+                transform={`rotate(${i * SEG + SEG / 2} ${lx} ${ly})`}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontFamily="Unbounded, sans-serif"
+                fontWeight="800"
+                fontSize={w.label.length > 3 ? 12 : 15}
+                fill="white"
+                stroke="rgba(0,0,0,.35)"
+                strokeWidth="3"
+                paintOrder="stroke"
+              >
                 {w.label}
               </text>
             </g>
@@ -55,10 +67,10 @@ function Wheel({ rotation }: { rotation: number }) {
           return <circle key={i} cx={x} cy={y} r="4" fill="#fef3c7" />;
         })}
       </motion.svg>
-      <div className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-gradient-to-b from-amber-200 to-amber-500 border-4 border-ink-900 grid place-items-center shadow-lg">
+      <div className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-gradient-to-b from-reward-soft to-reward-deep border-4 border-ink-900 grid place-items-center shadow-e2">
         <Emoji name="snake" size={38} />
       </div>
-      <div className="absolute left-1/2 -top-5 -translate-x-1/2 w-0 h-0 border-l-[16px] border-r-[16px] border-t-[30px] border-l-transparent border-r-transparent border-t-rose-500 drop-shadow-[0_4px_4px_rgba(0,0,0,.5)]" />
+      <div className="absolute left-1/2 -top-5 -translate-x-1/2 w-0 h-0 border-l-[16px] border-r-[16px] border-t-[30px] border-l-transparent border-r-transparent border-t-danger drop-shadow-[0_4px_4px_rgba(0,0,0,.5)]" />
     </div>
   );
 }
@@ -113,49 +125,75 @@ export function Rewards({ onBack }: { onBack: () => void }) {
       <TopBar title="Награды" onBack={onBack} />
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="max-w-xl mx-auto px-4 pb-10 grid gap-4">
-          <section className="glass rounded-3xl p-5 pt-8 overflow-hidden relative">
-            <div className="absolute -top-20 -left-20 w-60 h-60 rounded-full bg-amber-400/20 blur-3xl animate-blob" />
-            <div className="absolute -bottom-20 -right-20 w-60 h-60 rounded-full bg-pink-500/20 blur-3xl animate-blob" />
+          <section className="glass rounded-panel p-5 pt-8 overflow-hidden relative">
+            {/* A single static wash. The wheel itself carries the visual weight. */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(70% 50% at 50% 30%, rgba(227,176,75,0.08), transparent 70%)' }}
+            />
             <h2 className="relative font-display font-black text-2xl text-center mb-7">Колесо удачи</h2>
             <Wheel rotation={rotation} />
             <div className="relative mt-7">
               {free ? (
-                <Button size="lg" tone="gold" full disabled={spinning} className="shine" onClick={spin}>🎡 Крутить бесплатно</Button>
+                <Button size="lg" tone="reward" full disabled={spinning} onClick={spin}>
+                  🎡 Крутить бесплатно
+                </Button>
               ) : (
-                <Button size="lg" tone="purple" full disabled={spinning || p.coins < SPIN_PRICE} onClick={spin}>
+                <Button size="lg" tone="special" full disabled={spinning || p.coins < SPIN_PRICE} onClick={spin}>
                   Крутить за <Emoji name="coin" size={24} /> {SPIN_PRICE}
                 </Button>
               )}
-              {!free && <p className="text-center text-xs text-white/50 mt-2">Бесплатное вращение через {hoursLeft()}</p>}
+              {!free && <p className="text-center text-xs text-fg-mute mt-2">Бесплатное вращение через {hoursLeft()}</p>}
             </div>
           </section>
 
-          <section className="glass rounded-3xl p-4">
+          <section className="glass rounded-panel p-4">
             <div className="flex items-center gap-2 mb-3">
               <Emoji name="bullseye" size={30} />
-              <h2 className="font-display font-black text-lg flex-1">Задания дня</h2>
-              <span className="text-xs text-white/50">обновятся через {hoursLeft()}</span>
+              <h2 className="font-display font-black text-lg flex-1 whitespace-nowrap">Задания дня</h2>
+              <span className="text-[11px] text-fg-mute text-right leading-tight">
+                обновятся
+                <br />
+                через {hoursLeft()}
+              </span>
             </div>
             <div className="grid gap-2.5">
               {p.quests.list.map((q, i) => {
                 const def = questDef(q.id);
                 const done = q.progress >= q.target;
                 return (
-                  <div key={q.id} className={`rounded-2xl p-3 flex items-center gap-3 border ${q.claimed ? 'bg-white/5 border-white/5 opacity-60' : done ? 'bg-amber-400/15 border-amber-300/40' : 'bg-white/5 border-white/10'}`}>
+                  <div
+                    key={q.id}
+                    className={`rounded-card p-3 flex items-center gap-3 border ${q.claimed ? 'bg-white/[0.04] border-line-subtle opacity-60' : done ? 'bg-reward/15 border-reward/40' : 'bg-white/[0.04] border-line'}`}
+                  >
                     <Emoji name={def.sprite} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm leading-tight">{def.text(q.target)}</div>
                       <div className="flex items-center gap-2 mt-1.5">
                         <ProgressBar value={q.progress} max={q.target} className="flex-1" color={done ? '#facc15' : '#4ade80'} />
-                        <span className="text-xs tabular-nums text-white/60 w-14 text-right">{Math.min(q.progress, q.target)}/{q.target}</span>
+                        <span className="text-xs tabular-nums text-fg-soft w-14 text-right">
+                          {Math.min(q.progress, q.target)}/{q.target}
+                        </span>
                       </div>
                     </div>
                     {q.claimed ? (
-                      <span className="text-emerald-300 text-xs font-bold w-20 text-center">Получено</span>
+                      <span className="text-accent-soft text-xs font-bold w-20 text-center">Получено</span>
                     ) : (
-                      <Button size="sm" tone={done ? 'gold' : 'slate'} disabled={!done} className={done ? 'animate-wiggle' : ''}
-                        onClick={() => { const got = claimQuest(i); if (got) { audio.play('coin'); confetti({ particleCount: 40, spread: 50, origin: { y: 0.7 }, zIndex: 70 }); } }}>
-                        <Emoji name="coin" size={18} />{q.reward}
+                      <Button
+                        size="sm"
+                        tone={done ? 'reward' : 'neutral'}
+                        disabled={!done}
+                        className={done ? 'animate-wiggle' : ''}
+                        onClick={() => {
+                          const got = claimQuest(i);
+                          if (got) {
+                            audio.play('coin');
+                            confetti({ particleCount: 40, spread: 50, origin: { y: 0.7 }, zIndex: 70 });
+                          }
+                        }}
+                      >
+                        <Emoji name="coin" size={18} />
+                        {q.reward}
                       </Button>
                     )}
                   </div>
@@ -169,14 +207,20 @@ export function Rewards({ onBack }: { onBack: () => void }) {
       <Modal open={!!prize} onClose={() => setPrize(null)}>
         {prize && (
           <div className="p-7 text-center">
-            <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }}>
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+            >
               <Emoji name={prize.prize.sprite} size={110} className="mx-auto" />
             </motion.div>
-            <div className="font-display font-black text-3xl mt-3">
-              {prize.prize.item ? 'Подарок!' : `+${prize.prize.coins} монет`}
+            <div className="font-display font-black text-3xl mt-3">{prize.prize.item ? 'Подарок!' : `+${prize.prize.coins} монет`}</div>
+            {prize.itemName && <p className="text-reward-soft font-semibold mt-1">{prize.itemName}</p>}
+            <div className="mt-6">
+              <Button size="lg" full onClick={() => setPrize(null)}>
+                Забрать
+              </Button>
             </div>
-            {prize.itemName && <p className="text-amber-200 font-semibold mt-1">{prize.itemName}</p>}
-            <div className="mt-6"><Button size="lg" full onClick={() => setPrize(null)}>Забрать</Button></div>
           </div>
         )}
       </Modal>

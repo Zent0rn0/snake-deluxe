@@ -103,10 +103,18 @@ class AudioManager {
     });
   }
 
-  win() { this.jingle([72, 76, 79, 84, 0, 79, 84, 88], 0.09, 'square', 0.1); }
-  lose() { this.jingle([67, 63, 60, 55], 0.14, 'triangle', 0.16); }
-  achievement() { this.jingle([79, 83, 86, 91], 0.07, 'square', 0.09); }
-  levelUp() { this.jingle([60, 64, 67, 72, 76, 79, 84], 0.06, 'triangle', 0.16); }
+  win() {
+    this.jingle([72, 76, 79, 84, 0, 79, 84, 88], 0.09, 'square', 0.1);
+  }
+  lose() {
+    this.jingle([67, 63, 60, 55], 0.14, 'triangle', 0.16);
+  }
+  achievement() {
+    this.jingle([79, 83, 86, 91], 0.07, 'square', 0.09);
+  }
+  levelUp() {
+    this.jingle([60, 64, 67, 72, 76, 79, 84], 0.06, 'triangle', 0.16);
+  }
 
   private tone(freq: number, when: number, dur: number, type: OscillatorType, vol: number, bus: AudioNode, filter?: number) {
     const osc = this.ctx.createOscillator();
@@ -202,7 +210,12 @@ class AudioManager {
     const bar = Math.floor(step / 16);
     const s = step % 16;
     const roots = [48, 45, 41, 43];
-    const chords = [[60, 64, 67, 71], [57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 67]];
+    const chords = [
+      [60, 64, 67, 71],
+      [57, 60, 64, 67],
+      [53, 57, 60, 64],
+      [55, 59, 62, 67],
+    ];
     const root = roots[bar];
     const chord = chords[bar];
     const game = this.track === 'game';

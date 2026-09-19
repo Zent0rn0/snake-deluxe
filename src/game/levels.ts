@@ -24,7 +24,11 @@ export interface LevelDef {
 
 export const LEVELS: LevelDef[] = [
   {
-    id: 1, name: 'Первый укус', sprite: 'apple', goal: 8, stepMs: 155,
+    id: 1,
+    name: 'Первый укус',
+    sprite: 'apple',
+    goal: 8,
+    stepMs: 155,
     tip: 'Собери 8 фруктов. Ешь быстро подряд — копится комбо-множитель!',
     map: [
       '.............',
@@ -41,7 +45,11 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 2, name: 'Камушки', sprite: 'rock', goal: 10, stepMs: 145,
+    id: 2,
+    name: 'Камушки',
+    sprite: 'rock',
+    goal: 10,
+    stepMs: 145,
     tip: 'Камни твёрдые — объезжай их стороной.',
     map: [
       '...............',
@@ -60,7 +68,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 3, name: 'Сквозь стены', sprite: 'cyclone', goal: 12, stepMs: 140, wrap: true,
+    id: 3,
+    name: 'Сквозь стены',
+    sprite: 'cyclone',
+    goal: 12,
+    stepMs: 140,
+    wrap: true,
     tip: 'Здесь нет границ: уползай за край и выныривай с другой стороны.',
     map: [
       '...............',
@@ -79,7 +92,11 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 4, name: 'Порталы', sprite: 'dizzy', goal: 12, stepMs: 140,
+    id: 4,
+    name: 'Порталы',
+    sprite: 'dizzy',
+    goal: 12,
+    stepMs: 140,
     tip: 'Стена делит поле пополам. Ныряй в портал, чтобы попасть на другую сторону.',
     map: [
       '........#........',
@@ -100,7 +117,11 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 5, name: 'Тайный сад', sprite: 'key', goal: 12, stepMs: 140,
+    id: 5,
+    name: 'Тайный сад',
+    sprite: 'key',
+    goal: 12,
+    stepMs: 140,
     tip: 'Замки не пускают внутрь. Возьми ключ — и сад с монетами откроется.',
     map: [
       '.................',
@@ -121,7 +142,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 6, name: 'Грибной лес', sprite: 'mushroom', goal: 14, stepMs: 140, mutators: ['poison'],
+    id: 6,
+    name: 'Грибной лес',
+    sprite: 'mushroom',
+    goal: 14,
+    stepMs: 140,
+    mutators: ['poison'],
     tip: 'Не ешь мухоморы — управление перевернётся на несколько секунд!',
     map: [
       '.................',
@@ -142,7 +168,13 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 7, name: 'Гонка', sprite: 'flag', goal: 12, stepMs: 140, rival: 1, powerups: true,
+    id: 7,
+    name: 'Гонка',
+    sprite: 'flag',
+    goal: 12,
+    stepMs: 140,
+    rival: 1,
+    powerups: true,
     tip: 'Соперник тоже голоден! Собери 12 фруктов раньше него.',
     map: [
       '.................',
@@ -163,7 +195,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 8, name: 'Ночной сад', sprite: 'milkyway', goal: 12, stepMs: 145, mutators: ['dark'],
+    id: 8,
+    name: 'Ночной сад',
+    sprite: 'milkyway',
+    goal: 12,
+    stepMs: 145,
+    mutators: ['dark'],
     tip: 'Темно! Фрукты слегка светятся — ищи их огоньки.',
     map: [
       '...............',
@@ -182,7 +219,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 9, name: 'Камнепад', sprite: 'collision', goal: 15, stepMs: 135, mutators: ['walls'],
+    id: 9,
+    name: 'Камнепад',
+    sprite: 'collision',
+    goal: 15,
+    stepMs: 135,
+    mutators: ['walls'],
     tip: 'Каждый съеденный фрукт роняет камень. Планируй путь заранее.',
     map: [
       '##.............',
@@ -201,7 +243,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 10, name: 'Лабиринт', sprite: 'puzzle', goal: 15, stepMs: 130, powerups: true,
+    id: 10,
+    name: 'Лабиринт',
+    sprite: 'puzzle',
+    goal: 15,
+    stepMs: 130,
+    powerups: true,
     tip: 'Узкие коридоры. Бонусы помогут: ищи магнит и щит.',
     map: [
       '...................',
@@ -220,7 +267,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 11, name: 'Разгон', sprite: 'rocket', goal: 18, stepMs: 150, mutators: ['turbo'],
+    id: 11,
+    name: 'Разгон',
+    sprite: 'rocket',
+    goal: 18,
+    stepMs: 150,
+    mutators: ['turbo'],
     tip: 'С каждым фруктом змейка ускоряется. Держись!',
     map: [
       '.................',
@@ -241,7 +293,11 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 12, name: 'Четыре комнаты', sprite: 'map', goal: 14, stepMs: 135,
+    id: 12,
+    name: 'Четыре комнаты',
+    sprite: 'map',
+    goal: 14,
+    stepMs: 135,
     tip: 'Комнаты связаны порталами по кругу. Запомни, куда ведёт каждый.',
     map: [
       '........#........',
@@ -262,7 +318,13 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 13, name: 'Реванш', sprite: 'swords', goal: 15, stepMs: 125, rival: 2, powerups: true,
+    id: 13,
+    name: 'Реванш',
+    sprite: 'swords',
+    goal: 15,
+    stepMs: 125,
+    rival: 2,
+    powerups: true,
     tip: 'Соперник стал хитрее и пользуется порталами. Не дай себя обогнать!',
     map: [
       '...................',
@@ -281,7 +343,12 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 14, name: 'Замки и грибы', sprite: 'locked', goal: 16, stepMs: 130, mutators: ['poison'],
+    id: 14,
+    name: 'Замки и грибы',
+    sprite: 'locked',
+    goal: 16,
+    stepMs: 130,
+    mutators: ['poison'],
     tip: 'Один ключ открывает все замки. В комнатах — монеты, а у каждой комнаты по две двери.',
     map: [
       '...................',
@@ -302,7 +369,13 @@ export const LEVELS: LevelDef[] = [
     ],
   },
   {
-    id: 15, name: 'Финал', sprite: 'trophy', goal: 20, stepMs: 145, mutators: ['turbo'], powerups: true,
+    id: 15,
+    name: 'Финал',
+    sprite: 'trophy',
+    goal: 20,
+    stepMs: 145,
+    mutators: ['turbo'],
+    powerups: true,
     tip: 'Порталы, ускорение и бонусы. Покажи всё, чему научился!',
     map: [
       '...................',

@@ -62,6 +62,12 @@ export interface Snake {
   reversed: number;
   moveAcc: number;
   stepMs: number;
+  /** Time owed back on the next step after an early turn borrowed from it. */
+  stepDebt: number;
+  /** Debt to hand to `stepDebt` once the current step completes. */
+  nextDebt: number;
+  /** One early turn per cell, so turning cannot be spammed for free steps. */
+  earlyTurned: boolean;
   boosting: boolean;
   boostSteps: number;
   /** Positions (in segments from the head) of swallowed-food bulges. */
