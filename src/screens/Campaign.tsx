@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { audio } from '../audio/audio';
+import { accent, ink, neutral, reward } from '../design/tokens';
 import { mutatorById } from '../game/content';
 import type { Launch } from '../game/launch';
 import { LEVELS, levelPar, type LevelDef } from '../game/levels';
@@ -45,7 +46,7 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
         }
       />
       <div className="flex-1 overflow-y-auto no-scrollbar">
-        <div className="relative max-w-md mx-auto px-4 pt-4 pb-24">
+        <div className="relative safe-x max-w-md mx-auto px-4 pt-4 pb-24">
           {/* Path line */}
           <svg
             className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none"
@@ -57,7 +58,7 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
             <path
               d={LEVELS.map((_, i) => `${i ? 'L' : 'M'} ${200 + Math.sin(i * 1.1) * 90} ${62 + i * 124}`).join(' ')}
               fill="none"
-              stroke="rgba(255,255,255,0.14)"
+              stroke="rgba(255,255,255,0.09)"
               strokeWidth={10}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -84,29 +85,29 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
                 >
                   {isCurrent && (
                     <motion.div
-                      className="absolute -top-9 whitespace-nowrap rounded-xl bg-white text-ink-950 font-display font-black text-xs px-3 py-1.5 shadow-lg"
+                      className="absolute -top-9 whitespace-nowrap rounded-sm bg-fg text-ink-950 font-display font-black text-xs px-3 py-1.5 shadow-e2"
                       animate={{ y: [0, -5, 0] }}
                       transition={{ repeat: Infinity, duration: 1.4 }}
                     >
                       ИГРАТЬ
-                      <span className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-2.5 h-2.5 bg-white rotate-45" />
+                      <span className="absolute left-1/2 -bottom-1 -translate-x-1/2 w-2.5 h-2.5 bg-fg rotate-45" />
                     </motion.div>
                   )}
                   <div
                     className={`w-[78px] h-[78px] rounded-full grid place-items-center relative ${isCurrent ? 'pulse-ring' : ''}`}
                     style={{
                       background: isUnlocked
-                        ? stars > 0 ? 'linear-gradient(180deg,#fde047,#f59e0b)' : 'linear-gradient(180deg,#4ade80,#16a34a)'
-                        : 'linear-gradient(180deg,#475569,#334155)',
-                      boxShadow: `0 7px 0 ${isUnlocked ? (stars > 0 ? '#b45309' : '#166534') : '#1e293b'}, 0 14px 24px -8px rgba(0,0,0,.6)`,
+                        ? stars > 0
+                          ? `linear-gradient(180deg, ${reward.soft}, ${reward.base})`
+                          : `linear-gradient(180deg, ${accent.soft}, ${accent.base})`
+                        : `linear-gradient(180deg, ${neutral.base}, ${neutral.deep})`,
+                      boxShadow: `0 6px 0 ${isUnlocked ? (stars > 0 ? reward.deep : accent.deep) : ink[950]}, 0 12px 22px -10px rgba(0,0,0,.65)`,
                     }}
                   >
-                    {isUnlocked ? (
-                      <Emoji name={level.sprite} size={46} />
-                    ) : (
-                      <Lock size={30} className="text-white/60" />
-                    )}
-                    <span className="absolute -left-1 -top-1 w-7 h-7 rounded-full bg-ink-950 ring-2 ring-white/30 grid place-items-center font-display font-black text-xs">{level.id}</span>
+                    {isUnlocked ? <Emoji name={level.sprite} size={46} /> : <Lock size={30} className="text-fg-soft" />}
+                    <span className="absolute -left-1 -top-1 w-7 h-7 rounded-full bg-ink-900 ring-2 ring-line-strong grid place-items-center font-display font-black text-xs">
+                      {level.id}
+                    </span>
                   </div>
                   <div className="mt-2.5 h-6">{isUnlocked && <Stars count={stars} size={18} />}</div>
                 </motion.button>
@@ -114,8 +115,12 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
             );
           })}
           <div className="text-center mt-4">
-            <Emoji name="trophy" size={64} className={`mx-auto ${totalStars === LEVELS.length * 3 ? 'animate-float' : 'grayscale opacity-50'}`} />
-            <div className="text-sm text-white/60 mt-2">Собери все {LEVELS.length * 3} звёзд</div>
+            <Emoji
+              name="trophy"
+              size={64}
+              className={`mx-auto ${totalStars === LEVELS.length * 3 ? 'animate-float' : 'grayscale opacity-50'}`}
+            />
+            <div className="text-sm text-fg-soft mt-2">Собери все {LEVELS.length * 3} звёзд</div>
           </div>
         </div>
       </div>
@@ -124,20 +129,28 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
         {open && (
           <div className="p-6">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-400/40 to-teal-700/40 grid place-items-center">
+              <div className="w-20 h-20 rounded-panel bg-accent/15 border border-accent/30 grid place-items-center">
                 <Emoji name={open.sprite} size={56} />
               </div>
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Уровень {open.id}</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-accent-soft">Уровень {open.id}</div>
                 <div className="font-display font-black text-2xl leading-tight">{open.name}</div>
-                <div className="mt-1"><Stars count={p.campaign[open.id] ?? 0} size={20} /></div>
+                <div className="mt-1">
+                  <Stars count={p.campaign[open.id] ?? 0} size={20} />
+                </div>
               </div>
             </div>
-            <p className="mt-4 text-white/80 leading-snug">{open.tip}</p>
+            <p className="mt-4 text-fg-soft leading-snug">{open.tip}</p>
             <div className="flex flex-wrap gap-2 mt-4">
-              <span className="glass rounded-full pl-1 pr-3 py-1 text-sm flex items-center gap-1.5 font-semibold"><Emoji name="apple" size={20} />Съесть {open.goal}</span>
+              <span className="glass rounded-full pl-1 pr-3 py-1 text-sm flex items-center gap-1.5 font-semibold">
+                <Emoji name="apple" size={20} />
+                Съесть {open.goal}
+              </span>
               {features(open).map((f) => (
-                <span key={f.label} className="glass rounded-full pl-1 pr-3 py-1 text-sm flex items-center gap-1.5"><Emoji name={f.sprite} size={20} />{f.label}</span>
+                <span key={f.label} className="glass rounded-full pl-1 pr-3 py-1 text-sm flex items-center gap-1.5">
+                  <Emoji name={f.sprite} size={20} />
+                  {f.label}
+                </span>
               ))}
             </div>
             <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
@@ -146,14 +159,18 @@ export function Campaign({ onBack, play }: { onBack: () => void; play: (l: Launc
                 [`≤ ${levelPar(open)[0]} сек`, 2],
                 [`≤ ${levelPar(open)[1]} сек`, 3],
               ].map(([label, n]) => (
-                <div key={n} className="rounded-2xl bg-white/5 border border-white/10 py-2">
-                  <div className="flex justify-center"><Stars count={n as number} max={n as number} size={14} /></div>
-                  <div className="mt-1 font-semibold text-white/70">{label}</div>
+                <div key={n} className="rounded-card bg-white/[0.04] border border-line py-2">
+                  <div className="flex justify-center">
+                    <Stars count={n as number} max={n as number} size={14} />
+                  </div>
+                  <div className="mt-1 font-semibold text-fg-soft">{label}</div>
                 </div>
               ))}
             </div>
             <div className="mt-5">
-              <Button size="lg" full onClick={() => play({ mode: 'campaign', levelId: open.id })}>▶ Играть</Button>
+              <Button size="lg" full onClick={() => play({ mode: 'campaign', levelId: open.id })}>
+                ▶ Играть
+              </Button>
             </div>
           </div>
         )}

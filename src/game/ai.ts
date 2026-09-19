@@ -122,7 +122,7 @@ export function decideBotMove(engine: Engine, s: Snake): Dir {
       if (!best || score > best.score) best = { dir: firstDir[c] as Dir, score };
       if (dist[c] > 18) break;
     }
-    if (best && dist[c] > 1 / best.score * 3) break;
+    if (best && dist[c] > (1 / best.score) * 3) break;
     const cx = c % W;
     const cy = (c - cx) / W;
     for (let d = 0 as Dir; d < 4; d = (d + 1) as Dir) {

@@ -2,16 +2,71 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0820" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090812" />
+    <meta name="color-scheme" content="dark" />
     <meta name="description" content="Змейка Deluxe — приключение, арена с ботами, блиц, дуэль и испытания дня" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Змейка Deluxe</title>
-    <link rel="icon" href="emoji/snake.png" />
+    <link rel="icon" type="image/png" href="./emoji/snake.png" />
+    <link rel="apple-touch-icon" href="./emoji/snake.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800;900&display=swap" rel="stylesheet">
     <style>
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #0b0820; color: #f5f3ff; }
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #090812; color: #f1f0f7; }
+
+      /* Branded splash, shown until React mounts and replaces #root. */
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background:
+          radial-gradient(120% 80% at 50% 0%, #1a1730 0%, transparent 60%),
+          linear-gradient(180deg, #11101f 0%, #090812 100%);
+        font-family: system-ui, sans-serif;
+      }
+      #boot img { width: 84px; height: 84px; animation: boot-bob 2.4s ease-in-out infinite; }
+      #boot span {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: #8b89a3;
+      }
+      #boot i {
+        display: block;
+        width: 120px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+      }
+      #boot i::after {
+        content: "";
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 999px;
+        background: #3bbf6b;
+        animation: boot-slide 1.2s ease-in-out infinite;
+      }
+      @keyframes boot-bob {
+        0%, 100% { transform: translateY(0) rotate(-3deg); }
+        50% { transform: translateY(-9px) rotate(3deg); }
+      }
+      @keyframes boot-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(350%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot img, #boot i::after { animation: none; }
+      }
     </style>
     <script>
       (function () {
@@ -72,7 +127,13 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot">
+        <img src="./emoji/snake.png" alt="" />
+        <span>Змейка Deluxe</span>
+        <i></i>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,18 +1,92 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens.
+   Mirrored from src/design/tokens.ts — src/design/tokens.test.ts fails if the
+   two drift apart. Canvas reads the TS copy, the DOM reads this one.
+   ──────────────────────────────────────────────────────────────────────── */
 
 @theme {
-  --font-display: "Unbounded", "Rubik", system-ui, sans-serif;
-  --font-body: "Rubik", system-ui, sans-serif;
-  --color-ink-950: #0b0820;
-  --color-ink-900: #120d33;
-  --color-ink-800: #1c1547;
-  --color-ink-700: #2a2163;
+  --font-display: 'Unbounded', 'Rubik', system-ui, sans-serif;
+  --font-body: 'Rubik', system-ui, sans-serif;
+
+  /* Surface ramp: app background through to the most raised panel. */
+  --color-ink-950: #090812;
+  --color-ink-900: #10101d;
+  --color-ink-800: #18182a;
+  --color-ink-700: #222238;
+  --color-ink-600: #2d2d47;
+  --color-ink-500: #3a3a58;
+
+  /* Text. `fg-mute` is the lowest tier that still clears 4.5:1 on ink-900. */
+  --color-fg: #f1f0f7;
+  --color-fg-soft: #aeacc2;
+  --color-fg-mute: #8b89a3;
+
+  /* Accent families. soft = tints/highlights, base = the colour, deep = shadow. */
+  --color-accent-soft: #6ed49a;
+  --color-accent: #3bbf6b;
+  --color-accent-deep: #1e7a45;
+
+  --color-reward-soft: #f0cd82;
+  --color-reward: #e3b04b;
+  --color-reward-deep: #9c6f1e;
+
+  --color-danger-soft: #f08a94;
+  --color-danger: #e05260;
+  --color-danger-deep: #8f2733;
+
+  --color-info-soft: #8bbde8;
+  --color-info: #4a8fd9;
+  --color-info-deep: #26568c;
+
+  --color-special-soft: #b9a4e8;
+  --color-special: #8b6fd4;
+  --color-special-deep: #4e3a85;
+
+  --color-neutral-soft: #adabc0;
+  --color-neutral: #6f6d85;
+  --color-neutral-deep: #39384e;
+
+  /* Hairlines, as alpha so stacked panels do not turn to mud. */
+  --color-line-subtle: rgba(255, 255, 255, 0.07);
+  --color-line: rgba(255, 255, 255, 0.11);
+  --color-line-strong: rgba(255, 255, 255, 0.18);
+
+  /* Four elevation steps replace the ad-hoc shadow-lg / shadow-2xl mix. */
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-e2: 0 4px 14px -3px rgba(0, 0, 0, 0.45);
+  --shadow-e3: 0 14px 32px -10px rgba(0, 0, 0, 0.55);
+  --shadow-e4: 0 30px 64px -18px rgba(0, 0, 0, 0.65);
+
+  --radius-card: 18px;
+  --radius-panel: 24px;
+  --radius-sheet: 30px;
+
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+/* Game-specific variants. `coarse` is the honest "is this a touch device"
+   test — `ontouchstart` is true on touch-capable laptops too. */
+@custom-variant landscape (@media (orientation: landscape));
+@custom-variant short (@media (max-height: 30rem));
+@custom-variant coarse (@media (hover: none) and (pointer: coarse));
 
 :root {
   color-scheme: dark;
-  --bg-a: #1b1150;
-  --bg-b: #0b0820;
+
+  /* Safe-area shorthands so JSX can write max(var(--sab), 12px) everywhere. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+
+  /* Chrome tint, set from the equipped board theme so the menus agree with
+     the arena instead of being permanently violet. */
+  --app-tint: #15142a;
+
+  /* Film grain. Depth comes from texture and shade, not from coloured glow. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
 }
 
 html,
@@ -20,13 +94,13 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  background: var(--bg-b);
+  background: var(--color-ink-950);
   overscroll-behavior: none;
 }
 
 body {
   font-family: var(--font-body);
-  color: #f5f3ff;
+  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
@@ -45,76 +119,134 @@ img {
   user-select: none;
 }
 
-.app-bg {
-  background:
-    radial-gradient(1200px 700px at 10% -10%, rgba(124, 58, 237, 0.45), transparent 60%),
-    radial-gradient(900px 600px at 110% 20%, rgba(236, 72, 153, 0.28), transparent 60%),
-    radial-gradient(900px 700px at 50% 120%, rgba(34, 197, 94, 0.22), transparent 60%),
-    linear-gradient(180deg, var(--bg-a) 0%, var(--bg-b) 100%);
+/* Every interactive element gets a visible keyboard focus ring. */
+:where(button, a, input, select, textarea, [role='switch'], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent-soft);
+  outline-offset: 2px;
 }
 
+/* ─── Surfaces ──────────────────────────────────────────────────────────── */
+
+.app-bg {
+  background:
+    var(--grain), radial-gradient(125% 85% at 50% 42%, transparent 42%, rgba(0, 0, 0, 0.5) 100%),
+    radial-gradient(120% 72% at 50% -12%, rgba(103, 88, 168, 0.26), transparent 62%),
+    radial-gradient(80% 50% at 12% 106%, rgba(59, 191, 107, 0.09), transparent 62%),
+    radial-gradient(80% 50% at 90% 98%, rgba(139, 111, 212, 0.09), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-tint) 88%, #090812) 0%, #0c0b1a 48%, #090812 100%);
+  background-size:
+    180px 180px,
+    auto,
+    auto,
+    auto,
+    auto,
+    auto;
+  background-attachment: fixed, scroll, scroll, scroll, scroll, scroll;
+}
+
+/* Opaque by design. Real elevation reads better than frosted plastic and
+   costs nothing — blur on this many elements next to a requestAnimationFrame
+   canvas is the most expensive thing the app used to do on a phone. */
 .glass {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05));
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, var(--color-ink-800), var(--color-ink-900));
+  border: 1px solid var(--color-line);
+  box-shadow:
+    var(--shadow-e2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .glass-strong {
-  background: linear-gradient(180deg, rgba(40, 30, 95, 0.92), rgba(20, 14, 55, 0.95));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, var(--color-ink-700), var(--color-ink-900));
+  border: 1px solid var(--color-line-strong);
+  box-shadow:
+    var(--shadow-e4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Chunky 3D button */
+/* The one genuinely translucent surface: in-game chrome that the board must
+   show through. Degrades to opaque where blur is unsupported or unwanted. */
+.overlay-glass {
+  background: color-mix(in srgb, var(--color-ink-900) 82%, transparent);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-e2);
+}
+@supports (backdrop-filter: blur(1px)) {
+  .overlay-glass {
+    background: color-mix(in srgb, var(--color-ink-900) 62%, transparent);
+    backdrop-filter: blur(12px) saturate(1.1);
+    -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .overlay-glass {
+    background: var(--color-ink-900);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Chunky 3D button. Still tactile, no longer candy-coated. */
 .btn3d {
-  --c: #22c55e;
-  --d: #15803d;
+  --c: #3bbf6b;
+  --d: #1e7a45;
   --t: #ffffff;
   position: relative;
   color: var(--t);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 82%, white) 0%, var(--c) 55%);
-  box-shadow: 0 6px 0 var(--d), 0 12px 24px -8px color-mix(in srgb, var(--d) 70%, black);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 90%, white) 0%, var(--c) 58%);
+  box-shadow:
+    0 5px 0 var(--d),
+    0 10px 20px -8px rgba(0, 0, 0, 0.6);
   border: 0;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    filter 0.15s;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 .btn3d::after {
-  content: "";
+  content: '';
   position: absolute;
-  inset: 3px 8px auto 8px;
-  height: 38%;
+  inset: 2px 10px auto 10px;
+  height: 34%;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
   pointer-events: none;
 }
-.btn3d:hover {
-  filter: brightness(1.06);
+@media (hover: hover) {
+  .btn3d:hover {
+    filter: brightness(1.05);
+  }
 }
 .btn3d:active {
-  transform: translateY(5px);
-  box-shadow: 0 1px 0 var(--d), 0 4px 10px -6px color-mix(in srgb, var(--d) 70%, black);
+  transform: translateY(4px);
+  box-shadow:
+    0 1px 0 var(--d),
+    0 3px 8px -6px rgba(0, 0, 0, 0.6);
 }
 .btn3d:disabled {
-  filter: grayscale(0.8) brightness(0.7);
+  filter: grayscale(0.75) brightness(0.62);
   cursor: not-allowed;
 }
 
+/* ─── Type treatments ───────────────────────────────────────────────────── */
+
 .text-gradient-snake {
-  background: linear-gradient(180deg, #d9f99d 0%, #4ade80 45%, #16a34a 100%);
+  background: linear-gradient(176deg, #d4f7e2 0%, #7ddcaa 44%, #3bbf6b 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-.text-outline {
-  -webkit-text-stroke: 0;
+/* Two layers: a hard edge that gives the letters thickness, and a soft one
+   that lifts them off the background. No coloured bloom. */
+.text-depth {
   text-shadow:
-    0 3px 0 #14532d,
-    0 6px 0 rgba(0, 0, 0, 0.35),
-    0 12px 30px rgba(34, 197, 94, 0.45);
+    0 3px 0 #16583a,
+    0 5px 0 #0d3423,
+    0 14px 26px rgba(0, 0, 0, 0.55);
 }
+
+/* ─── Utilities ─────────────────────────────────────────────────────────── */
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -123,58 +255,9 @@ img {
   scrollbar-width: none;
 }
 
-@keyframes float-y {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-10px) rotate(3deg); }
-}
-.animate-float {
-  animation: float-y 3.2s ease-in-out infinite;
-}
-
-@keyframes wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-8deg); }
-  75% { transform: rotate(8deg); }
-}
-.animate-wiggle {
-  animation: wiggle 0.9s ease-in-out infinite;
-}
-
-@keyframes shine {
-  0% { transform: translateX(-120%) skewX(-20deg); }
-  60%, 100% { transform: translateX(220%) skewX(-20deg); }
-}
-.shine {
-  position: relative;
-  overflow: hidden;
-}
-.shine::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-  animation: shine 3.5s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
-}
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
-  100% { box-shadow: 0 0 0 14px rgba(250, 204, 21, 0); }
-}
-.pulse-ring {
-  animation: pulse-ring 1.6s ease-out infinite;
-}
-
-@keyframes blob {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -40px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.95); }
-}
-.animate-blob {
-  animation: blob 14s ease-in-out infinite;
+.safe-x {
+  padding-left: max(var(--sal), 0px);
+  padding-right: max(var(--sar), 0px);
 }
 
 .game-surface {
@@ -184,12 +267,87 @@ img {
   -webkit-touch-callout: none;
 }
 
+/* ─── Motion ────────────────────────────────────────────────────────────── */
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(3deg);
+  }
+}
+.animate-float {
+  animation: float-y 3.4s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-7deg);
+  }
+  75% {
+    transform: rotate(7deg);
+  }
+}
+.animate-wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+@keyframes shine {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  60%,
+  100% {
+    transform: translateX(220%) skewX(-20deg);
+  }
+}
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+.shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  animation: shine 5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Reserved for the one thing that is genuinely asking to be tapped. */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(110, 212, 154, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(110, 212, 154, 0);
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-float,
   .animate-wiggle,
-  .animate-blob,
   .shine::before,
   .pulse-ring {
     animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

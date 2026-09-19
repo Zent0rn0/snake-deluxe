@@ -1,7 +1,8 @@
+import { danger, info, reward } from '../design/tokens';
 import { sprite } from './assets';
 import { hatById, POWERS, skinById, themeById, type SkinDef, type ThemeDef } from './content';
 import { CELL_LOCK, CELL_ROCK, type Engine } from './engine';
-import { DX, DY, type GameEvent, type Item, type Snake } from './types';
+import { DX, DY, type Dir, type GameEvent, type Item, type Snake } from './types';
 
 // ─── Particles & floating text ──────────────────────────────────────────────
 
@@ -32,9 +33,22 @@ interface Floater {
 }
 
 export const FRUIT_COLORS: Record<string, string> = {
-  apple: '#ef4444', tangerine: '#fb923c', grapes: '#a855f7', strawberry: '#f43f5e', banana: '#facc15',
-  cherries: '#dc2626', watermelon: '#22c55e', peach: '#fdba74', pineapple: '#eab308', kiwi: '#84cc16',
-  lemon: '#fde047', blueberries: '#6366f1', coin: '#fbbf24', key: '#f59e0b', stopwatch: '#f87171', mushroom: '#dc2626',
+  apple: '#ef4444',
+  tangerine: '#fb923c',
+  grapes: '#a855f7',
+  strawberry: '#f43f5e',
+  banana: '#facc15',
+  cherries: '#dc2626',
+  watermelon: '#22c55e',
+  peach: '#fdba74',
+  pineapple: '#eab308',
+  kiwi: '#84cc16',
+  lemon: '#fde047',
+  blueberries: '#6366f1',
+  coin: '#fbbf24',
+  key: '#f59e0b',
+  stopwatch: '#f87171',
+  mushroom: '#dc2626',
 };
 
 const TAU = Math.PI * 2;
@@ -125,12 +139,14 @@ export function drawSnakeShape(
   }
   ctx.fill();
 
-  // Outline.
-  if (skin.glow || look.turbo) {
-    ctx.shadowColor = look.turbo ? '#facc15' : skin.glow!;
-    ctx.shadowBlur = cs * (look.turbo ? 0.9 : 0.6);
+  // Outline. A shadow blur over hundreds of arcs is the single most expensive
+  // draw here, so it is reserved for turbo — there the glow is information
+  // about an active power-up, not decoration.
+  if (look.turbo) {
+    ctx.shadowColor = reward.base;
+    ctx.shadowBlur = cs * 0.45;
   }
-  ctx.fillStyle = look.freeze ? '#38bdf8' : skin.outline;
+  ctx.fillStyle = look.freeze ? info.soft : skin.outline;
   ctx.beginPath();
   const ow = Math.max(1.5, cs * 0.06);
   for (const p of samples) {
@@ -140,12 +156,21 @@ export function drawSnakeShape(
   }
   ctx.fill();
   ctx.shadowBlur = 0;
+  // Legendary rim light: one stroke of the path we just filled, no blur pass.
+  if (skin.rim) {
+    const keep = ctx.globalAlpha;
+    ctx.globalAlpha = keep * 0.4;
+    ctx.strokeStyle = skin.rim;
+    ctx.lineWidth = Math.max(1, cs * 0.05);
+    ctx.stroke();
+    ctx.globalAlpha = keep;
+  }
 
   // Colour, batched by consecutive identical colours.
   let current = '';
   ctx.beginPath();
   for (const p of samples) {
-    const col = skin.color(Math.round(p.seg * 2) / 2 | 0, len, time);
+    const col = skin.color((Math.round(p.seg * 2) / 2) | 0, len, time);
     if (col !== current) {
       if (current) ctx.fill();
       ctx.fillStyle = col;
@@ -224,8 +249,10 @@ export function drawSnakeShape(
       ctx.lineWidth = Math.max(1.5, cs * 0.06);
       ctx.beginPath();
       const k = eyeR * 0.7;
-      ctx.moveTo(ex - k, ey - k); ctx.lineTo(ex + k, ey + k);
-      ctx.moveTo(ex + k, ey - k); ctx.lineTo(ex - k, ey + k);
+      ctx.moveTo(ex - k, ey - k);
+      ctx.lineTo(ex + k, ey + k);
+      ctx.moveTo(ex + k, ey - k);
+      ctx.lineTo(ex - k, ey + k);
       ctx.stroke();
       continue;
     }
@@ -278,7 +305,7 @@ export function drawSnakeShape(
 
   // Effects around the head.
   if (look.shield) {
-    ctx.strokeStyle = `rgba(96,165,250,${0.55 + Math.sin(time * 8) * 0.25})`;
+    ctx.strokeStyle = `rgba(74,143,217,${0.55 + Math.sin(time * 8) * 0.25})`;
     ctx.lineWidth = Math.max(2, cs * 0.08);
     ctx.beginPath();
     ctx.arc(hx, hy, headR * 1.75, 0, TAU);
@@ -286,7 +313,7 @@ export function drawSnakeShape(
   }
   if (look.magnet) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(248,113,113,0.5)';
+    ctx.strokeStyle = 'rgba(224,82,96,0.5)';
     ctx.setLineDash([cs * 0.25, cs * 0.25]);
     ctx.lineDashOffset = -time * cs * 2;
     ctx.lineWidth = Math.max(1.5, cs * 0.05);
@@ -329,6 +356,8 @@ export class Renderer {
   flashColor = '#ffffff';
   punch = 0;
   reducedFx = false;
+  /** Acknowledges a queued turn on the next frame, before the grid step lands. */
+  private turnHint: { dir: Dir; life: number } | null = null;
   private bg: HTMLCanvasElement | null = null;
   private dark: HTMLCanvasElement | null = null;
   private stars: { x: number; y: number; s: number; p: number }[] = [];
@@ -347,6 +376,12 @@ export class Renderer {
     return { cs, w: Math.round(cs * (cols + FRAME * 2)), h: Math.round(cs * (rows + FRAME * 2)) };
   }
 
+  /** Draw a chevron at the head in `dir` for a moment. */
+  showTurnHint(dir: Dir) {
+    if (this.reducedFx) return;
+    this.turnHint = { dir, life: 0.18 };
+  }
+
   setEngine(engine: Engine) {
     this.engine = engine;
     this.particles = [];
@@ -354,9 +389,11 @@ export class Renderer {
     this.bg = null;
   }
 
-  resize(cssW: number, cssH: number) {
+  resize(cssW: number, cssH: number, insets?: { top?: number; right?: number; bottom?: number; left?: number }) {
     const { cols, rows } = this.engine;
-    const fit = Renderer.fit(cols, rows, cssW, cssH);
+    const padX = (insets?.left ?? 0) + (insets?.right ?? 0);
+    const padY = (insets?.top ?? 0) + (insets?.bottom ?? 0);
+    const fit = Renderer.fit(cols, rows, Math.max(40, cssW - padX), Math.max(40, cssH - padY));
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.cs = fit.cs;
     this.width = fit.w;
@@ -405,13 +442,19 @@ export class Renderer {
       g.strokeStyle = theme.grid;
       g.lineWidth = 1;
       g.beginPath();
-      for (let x = 0; x <= cols; x++) { g.moveTo(this.ox + x * cs, this.oy); g.lineTo(this.ox + x * cs, this.oy + rows * cs); }
-      for (let y = 0; y <= rows; y++) { g.moveTo(this.ox, this.oy + y * cs); g.lineTo(this.ox + cols * cs, this.oy + y * cs); }
+      for (let x = 0; x <= cols; x++) {
+        g.moveTo(this.ox + x * cs, this.oy);
+        g.lineTo(this.ox + x * cs, this.oy + rows * cs);
+      }
+      for (let y = 0; y <= rows; y++) {
+        g.moveTo(this.ox, this.oy + y * cs);
+        g.lineTo(this.ox + cols * cs, this.oy + y * cs);
+      }
       g.stroke();
     }
     // Decorations (deterministic).
     let seed = cols * 31 + rows * 17;
-    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     if (theme.decor.length) {
       const count = Math.floor(cols * rows * 0.12);
       for (let i = 0; i < count; i++) {
@@ -445,7 +488,8 @@ export class Renderer {
     this.bg = c;
     this.stars = [];
     if (theme.stars) {
-      for (let i = 0; i < cols * rows * 0.05; i++) this.stars.push({ x: rnd() * cols, y: rnd() * rows, s: 0.03 + rnd() * 0.05, p: rnd() * TAU });
+      for (let i = 0; i < cols * rows * 0.05; i++)
+        this.stars.push({ x: rnd() * cols, y: rnd() * rows, s: 0.03 + rnd() * 0.05, p: rnd() * TAU });
     }
   }
 
@@ -458,8 +502,17 @@ export class Renderer {
       const v = speed * (0.35 + Math.random() * 0.65);
       const max = 0.45 + Math.random() * 0.45;
       this.particles.push({
-        x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: max, max,
-        size: size * (0.6 + Math.random() * 0.8), color, shape, gravity, spin: Math.random() * TAU,
+        x,
+        y,
+        vx: Math.cos(a) * v,
+        vy: Math.sin(a) * v,
+        life: max,
+        max,
+        size: size * (0.6 + Math.random() * 0.8),
+        color,
+        shape,
+        gravity,
+        spin: Math.random() * TAU,
       });
     }
     if (this.particles.length > 600) this.particles.splice(0, this.particles.length - 600);
@@ -480,12 +533,20 @@ export class Renderer {
         case 'eat': {
           const cx = ev.x + 0.5;
           const cy = ev.y + 0.5;
-          const color = ev.kind === 'power' ? POWERS[ev.power!].color : ev.kind === 'golden' ? '#fbbf24' : ev.kind === 'orb' ? '#fef08a' : FRUIT_COLORS[ev.sprite] ?? '#fde047';
+          const color =
+            ev.kind === 'power'
+              ? POWERS[ev.power!].color
+              : ev.kind === 'golden'
+                ? reward.base
+                : ev.kind === 'orb'
+                  ? '#fef08a'
+                  : (FRUIT_COLORS[ev.sprite] ?? '#fde047');
           const isPlayer = e.snakes[ev.snake]?.controller !== 'bot';
           if (ev.kind === 'golden') {
-            this.burst(cx, cy, '#fde047', 34, 7, 'star', 0.2);
-            this.ring(cx, cy, '#fde047', 2.4);
-            this.flash = 0.35; this.flashColor = '#fde68a';
+            this.burst(cx, cy, reward.soft, 34, 7, 'star', 0.2);
+            this.ring(cx, cy, reward.soft, 2.4);
+            this.ring(cx, cy, reward.base, 3.6);
+            this.punch = Math.min(1, this.punch + 0.5);
             this.shake = Math.max(this.shake, 0.18);
           } else if (ev.kind === 'power') {
             this.burst(cx, cy, color, 26, 6, 'spark', 0.14);
@@ -493,14 +554,14 @@ export class Renderer {
             if (isPlayer) this.float(cx, cy - 0.4, POWERS[ev.power!].name + '!', color, 0.6);
           } else if (ev.kind === 'poison') {
             this.burst(cx, cy, '#a3e635', 24, 4, 'circle', 0.18, -2);
-            if (isPlayer) this.float(cx, cy - 0.4, 'Бе-е! 🌀', '#a3e635', 0.6);
+            if (isPlayer) this.float(cx, cy - 0.4, 'Бе-е! 🌀', '#9bbf5a', 0.6);
             this.shake = Math.max(this.shake, 0.15);
           } else if (ev.kind === 'key') {
-            this.burst(cx, cy, '#fbbf24', 30, 6, 'star', 0.16);
-            this.float(cx, cy - 0.4, 'Замки открыты!', '#fbbf24', 0.55);
+            this.burst(cx, cy, reward.base, 30, 6, 'star', 0.16);
+            this.float(cx, cy - 0.4, 'Замки открыты!', reward.base, 0.55);
           } else if (ev.kind === 'clock') {
-            this.burst(cx, cy, '#f87171', 18, 5, 'spark', 0.12);
-            this.float(cx, cy - 0.4, '+5 сек', '#fca5a5', 0.6);
+            this.burst(cx, cy, danger.base, 18, 5, 'spark', 0.12);
+            this.float(cx, cy - 0.4, '+5 сек', danger.soft, 0.6);
           } else {
             this.burst(cx, cy, color, ev.kind === 'orb' ? 6 : 16, 5, ev.kind === 'coin' ? 'star' : 'circle', 0.13, 3);
             this.ring(cx, cy, color, 1.2);
@@ -508,11 +569,11 @@ export class Renderer {
           if (isPlayer) {
             this.punch = Math.min(1, this.punch + 0.35);
             if (ev.points > 0 && ev.kind !== 'power') {
-              this.float(cx, cy - 0.2, `+${ev.points}`, ev.combo >= 4 ? '#fde047' : '#ffffff', ev.combo >= 7 ? 0.75 : 0.55);
+              this.float(cx, cy - 0.2, `+${ev.points}`, ev.combo >= 4 ? reward.soft : '#ffffff', ev.combo >= 7 ? 0.75 : 0.55);
             }
             if (ev.combo >= 4 && ev.combo % 3 === 1) {
               const mult = 1 + Math.floor((ev.combo - 1) / 3);
-              this.float(cx, cy - 1.1, `КОМБО ×${mult}`, '#f472b6', 0.7);
+              this.float(cx, cy - 1.1, `КОМБО ×${mult}`, reward.base, 0.7);
               this.shake = Math.max(this.shake, 0.12);
             }
           }
@@ -527,21 +588,24 @@ export class Renderer {
           }
           this.burst(ev.x + 0.5, ev.y + 0.5, '#ffffff', 20, 7, 'spark', 0.12);
           this.shake = Math.max(this.shake, s.controller === 'bot' ? 0.2 : 0.55);
-          if (s.controller !== 'bot') { this.flash = 0.35; this.flashColor = '#ef4444'; }
+          if (s.controller !== 'bot') {
+            this.flash = 0.22;
+            this.flashColor = danger.base;
+          }
           break;
         }
         case 'kill': {
           const killer = e.snakes[ev.snake];
           const victim = e.snakes[ev.victim];
           if (killer?.controller === 'p1' && victim) {
-            this.float(victim.body[0].x + 0.5, victim.body[0].y - 0.3, 'Съел! +100', '#f87171', 0.7);
+            this.float(victim.body[0].x + 0.5, victim.body[0].y - 0.3, 'Съел! +100', danger.base, 0.7);
           }
           break;
         }
         case 'shield':
-          this.ring(ev.x + 0.5, ev.y + 0.5, '#60a5fa', 2.6);
-          this.burst(ev.x + 0.5, ev.y + 0.5, '#93c5fd', 30, 6, 'spark', 0.14);
-          this.float(ev.x + 0.5, ev.y - 0.3, 'Щит спас!', '#93c5fd', 0.6);
+          this.ring(ev.x + 0.5, ev.y + 0.5, info.base, 2.6);
+          this.burst(ev.x + 0.5, ev.y + 0.5, info.soft, 30, 6, 'spark', 0.14);
+          this.float(ev.x + 0.5, ev.y - 0.3, 'Щит спас!', info.soft, 0.6);
           this.shake = Math.max(this.shake, 0.35);
           break;
         case 'portal': {
@@ -552,7 +616,7 @@ export class Renderer {
           break;
         }
         case 'unlock':
-          this.burst(ev.x + 0.5, ev.y + 0.5, '#fde68a', 14, 4, 'star', 0.14);
+          this.burst(ev.x + 0.5, ev.y + 0.5, reward.soft, 14, 4, 'star', 0.14);
           break;
         case 'rock':
           this.burst(ev.x + 0.5, ev.y + 0.5, '#a8a29e', 14, 3, 'circle', 0.16, 4);
@@ -564,7 +628,8 @@ export class Renderer {
           break;
         }
         case 'win':
-          this.flash = 0.4; this.flashColor = '#fef08a';
+          this.flash = 0.16;
+          this.flashColor = reward.soft;
           break;
       }
     }
@@ -583,9 +648,9 @@ export class Renderer {
     const shakeMag = this.reducedFx ? 0 : this.shake * cs * 0.6;
     const sx = (Math.random() - 0.5) * shakeMag;
     const sy = (Math.random() - 0.5) * shakeMag;
-    this.shake = Math.max(0, this.shake - dt / 1000 * 1.6);
+    this.shake = Math.max(0, this.shake - (dt / 1000) * 1.6);
     const punch = this.reducedFx ? 0 : this.punch;
-    this.punch = Math.max(0, this.punch - dt / 1000 * 4);
+    this.punch = Math.max(0, this.punch - (dt / 1000) * 4);
 
     ctx.save();
     const scale = 1 + punch * 0.012;
@@ -616,6 +681,7 @@ export class Renderer {
     this.drawPortals(sec);
     this.drawItems(sec);
     this.drawSnakes(sec);
+    this.drawTurnHint(dt);
     this.drawParticles(dt);
     if (engine.mutators.has('dark')) this.drawDarkness(sec);
     this.drawFloaters(dt);
@@ -713,13 +779,20 @@ export class Renderer {
 
       if (it.kind === 'orb') {
         const r = cs * 0.2 * pop * (1 + Math.sin(sec * 6 + it.id) * 0.12);
-        ctx.shadowColor = it.color ?? '#fff';
-        ctx.shadowBlur = cs * 0.5;
-        ctx.fillStyle = it.color ?? '#fff';
+        const col = it.color ?? '#fff';
+        const halo = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 2.4);
+        halo.addColorStop(0, col);
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 2.4, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = col;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, TAU);
         ctx.fill();
-        ctx.shadowBlur = 0;
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.beginPath();
         ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.35, 0, TAU);
@@ -834,15 +907,17 @@ export class Renderer {
 
   private drawSnakes(sec: number) {
     const { engine, ctx, cs } = this;
-    const leader = engine.cfg.mode === 'arena'
-      ? engine.snakes.filter((s) => s.alive).reduce<Snake | null>((a, b) => (!a || b.score > a.score ? b : a), null)
-      : null;
+    const leader =
+      engine.cfg.mode === 'arena'
+        ? engine.snakes.filter((s) => s.alive).reduce<Snake | null>((a, b) => (!a || b.score > a.score ? b : a), null)
+        : null;
 
     for (const s of engine.snakes) {
       let alpha = 1;
       if (!s.alive) {
         const since = (engine.time - s.deadTime) / 1000;
-        if (engine.phase === 'dying' || engine.phase === 'over' || engine.phase === 'roundOver') alpha = s.controller === 'bot' ? Math.max(0, 1 - since * 1.5) : 1;
+        if (engine.phase === 'dying' || engine.phase === 'over' || engine.phase === 'roundOver')
+          alpha = s.controller === 'bot' ? Math.max(0, 1 - since * 1.5) : 1;
         else alpha = Math.max(0, 1 - since * 2.2);
         if (alpha <= 0) continue;
       }
@@ -856,12 +931,15 @@ export class Renderer {
       let bestD = 1e9;
       for (const it of engine.items) {
         const d = Math.abs(it.x - head.x) + Math.abs(it.y - head.y);
-        if (d < bestD && it.kind !== 'poison') { bestD = d; lookAt = { x: it.x + 0.5, y: it.y + 0.5 }; }
+        if (d < bestD && it.kind !== 'poison') {
+          bestD = d;
+          lookAt = { x: it.x + 0.5, y: it.y + 0.5 };
+        }
       }
 
       if (s.effects.turbo && s.alive && Math.random() < 0.5) {
         const tail = s.body[s.body.length - 1];
-        this.burst(tail.x + 0.5, tail.y + 0.5, '#fde047', 1, 1.5, 'spark', 0.1);
+        this.burst(tail.x + 0.5, tail.y + 0.5, reward.soft, 1, 1.5, 'spark', 0.1);
       }
       if (s.effects.freeze && s.alive && Math.random() < 0.3) {
         const b = s.body[Math.floor(Math.random() * s.body.length)];
@@ -887,6 +965,49 @@ export class Renderer {
         leader: leader === s && engine.cfg.mode === 'arena',
       });
     }
+  }
+
+  /**
+   * A chevron ahead of the head in the queued direction. Even when the turn
+   * itself has to wait for the cell boundary, the input is acknowledged on the
+   * next frame — which is most of what "responsive" actually feels like.
+   */
+  private drawTurnHint(dt: number) {
+    const hint = this.turnHint;
+    if (!hint) return;
+    hint.life -= dt / 1000;
+    if (hint.life <= 0) {
+      this.turnHint = null;
+      return;
+    }
+    const player = this.engine.player ?? this.engine.snakes[0];
+    if (!player?.alive) return;
+    const { ctx, cs } = this;
+    const step = this.engine.effectiveStep(player);
+    const t = Math.min(1, player.moveAcc / step);
+    const b = player.body[0];
+    const pb = player.prevBody[0] ?? b;
+    const jump = Math.abs(b.x - pb.x) + Math.abs(b.y - pb.y) > 1;
+    const hx = this.ox + ((jump ? b.x : pb.x + (b.x - pb.x) * t) + 0.5) * cs;
+    const hy = this.oy + ((jump ? b.y : pb.y + (b.y - pb.y) * t) + 0.5) * cs;
+    const ang = (hint.dir - 1) * (Math.PI / 2);
+    const fade = Math.min(1, hint.life / 0.18);
+
+    ctx.save();
+    ctx.translate(hx + DX[hint.dir] * cs * 0.9, hy + DY[hint.dir] * cs * 0.9);
+    ctx.rotate(ang);
+    ctx.globalAlpha = fade * 0.85;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(2, cs * 0.11);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-cs * 0.18, -cs * 0.22);
+    ctx.lineTo(cs * 0.12, 0);
+    ctx.lineTo(-cs * 0.18, cs * 0.22);
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   private drawParticles(dt: number) {
@@ -1059,7 +1180,13 @@ export function drawPreviewSnake(ctx: CanvasRenderingContext2D, w: number, h: nu
   const ox = (w - 7 * cs) / 2;
   const oy = (h - 3.2 * cs) / 2;
   drawSnakeShape(ctx, [pts], segs, cs, ox, oy, {
-    skin: skinById(skinId), hat: hatId, time, alpha: 1, alive: true, gulps: [], blinkSeed: 0,
+    skin: skinById(skinId),
+    hat: hatId,
+    time,
+    alpha: 1,
+    alive: true,
+    gulps: [],
+    blinkSeed: 0,
     lookAt: { x: 8, y: 1.6 },
   });
 }
